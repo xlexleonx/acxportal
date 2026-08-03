@@ -35,7 +35,6 @@ export const hostGroupType = (groups: any[]) => {
   if (name.includes("linux") || name.includes("astra")) return "server";
   if (name.includes("storage") || name.includes("ocean")) return "storage";
   if (name.includes("switch") || name.includes("network") || name.includes("firewall") || name.includes("router")) return "network";
-  if (name.includes("k8s") || name.includes("kube") || name.includes("vmware") || name.includes("esxi")) return "virtual";
   if (name.includes("windows")) return "windows";
   return "other";
 };
@@ -47,8 +46,7 @@ export const groupTypeConfig: Record<string, { label: string; icon: typeof Serve
   windows: { label: "Серверы (Windows)", icon: Monitor },
   storage: { label: "СХД", icon: HardDrive },
   network: { label: "Сетевое оборудование", icon: Network },
-  virtual: { label: "Виртуализация / K8s", icon: Cpu },
-  other: { label: "Прочее", icon: Server },
+  other: { label: "Zabbix клиенты", icon: Server },
 };
 
 export function metricColor(val: number | null) {
@@ -64,4 +62,26 @@ export function duration(clock: string) {
   if (diff < 3600) return `${Math.floor(diff / 60)}м`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}ч ${Math.floor((diff % 3600) / 60)}м`;
   return `${Math.floor(diff / 86400)}д ${Math.floor((diff % 86400) / 3600)}ч`;
+}
+
+
+// Нужно ли устройству ФИЗИЧЕСКОЕ обслуживание (чистка от пыли, проверка охлаждения)
+// и применимо ли к нему uptime-правило перезагрузки/ТО.
+// Обслуживаемое: серверы, СХД, BMC (это компьютеры/массивы с вентиляторами и ОС).
+// НЕ обслуживаемое: сетевое (коммутаторы/маршрутизаторы/МСЭ) и ИБП — их uptime это норма.
+// Физическое ТО (чистка от пыли, проверка охлаждения) — железо с вентиляторами.
+export const PHYSICAL_SERVICE_TYPES = new Set(["server", "backup_server", "storage", "bmc", "pdu", "ups"]);
+// Перезагрузка/uptime актуальны — то же железо ПЛЮС виртуальные машины (ОС требует перезагрузки).
+export const REBOOT_TYPES = new Set([...PHYSICAL_SERVICE_TYPES, "vm_windows", "vm_linux"]);
+
+export function needsPhysicalService(deviceType?: string | null): boolean {
+  return PHYSICAL_SERVICE_TYPES.has(String(deviceType || "").toLowerCase());
+}
+export function needsReboot(deviceType?: string | null): boolean {
+  return REBOOT_TYPES.has(String(deviceType || "").toLowerCase());
+}
+// Обратная совместимость: «обслуживаемое» = требует физического ТО.
+export const MAINTAINABLE_TYPES = PHYSICAL_SERVICE_TYPES;
+export function isMaintainable(deviceType?: string | null): boolean {
+  return needsPhysicalService(deviceType);
 }

@@ -12,37 +12,57 @@ import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-const CURRENT_AGENT_VERSION = "0.2.0";
+// Актуальная версия агента берётся из таблицы agent_releases (is_current).
+function useCurrentAgentVersion(): string | null {
+  const { data } = useQuery({
+    queryKey: ["current-agent-version"],
+    queryFn: async () => {
+      const { data } = await supabase.from("agent_releases")
+        .select("version").eq("is_current", true).maybeSingle();
+      return (data?.version as string) ?? null;
+    },
+    staleTime: 60000,
+  });
+  return data ?? null;
+}
+function cmpVer(a: string, b: string): number {
+  const pa = a.replace(/^v/, "").split(".").map(Number);
+  const pb = b.replace(/^v/, "").split(".").map(Number);
+  for (let i = 0; i < 3; i++) { const x = pa[i]||0, y = pb[i]||0; if (x>y) return 1; if (x<y) return -1; }
+  return 0;
+}
 
 function AgentVersionBadge({ version }: { version?: string | null }) {
+  const current = useCurrentAgentVersion();
   if (!version) {
     return <Badge variant="secondary" className="font-mono text-[10px]">неизвестно</Badge>;
   }
-  const outdated = version !== CURRENT_AGENT_VERSION;
+  // Нет сведений об актуальной версии — нейтральный бейдж без оценки.
+  if (!current) {
+    return <Badge className="font-mono text-[10px] bg-muted text-foreground border-transparent">v{version}</Badge>;
+  }
+  const diff = cmpVer(current, version); // >0 = агент отстал
+  const cur = current.replace(/^v/, "").split(".").map(Number);
+  const has = version.replace(/^v/, "").split(".").map(Number);
+  // насколько отстал: major/minor = сильно (красный), только patch = слегка (жёлтый)
+  const behindMajorMinor = diff > 0 && ((cur[0]||0) > (has[0]||0) || (cur[1]||0) > (has[1]||0));
+  let cls = "bg-green-600 hover:bg-green-600";      // на актуальной
+  if (diff > 0) cls = behindMajorMinor ? "bg-red-600 hover:bg-red-600" : "bg-amber-500 hover:bg-amber-500";
   const badge = (
-    <Badge
-      className={
-        "font-mono text-[10px] " +
-        (outdated
-          ? "bg-orange-500 hover:bg-orange-500 text-white border-transparent"
-          : "bg-green-600 hover:bg-green-600 text-white border-transparent")
-      }
-    >
-      v{version}
-    </Badge>
+    <Badge className={"font-mono text-[10px] text-white border-transparent " + cls}>v{version}</Badge>
   );
-  if (!outdated) return badge;
+  if (diff <= 0) return badge; // на актуальной или новее — без тултипа
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild><span>{badge}</span></TooltipTrigger>
-        <TooltipContent>Доступно обновление (актуальная v{CURRENT_AGENT_VERSION})</TooltipContent>
+        <TooltipContent>{behindMajorMinor ? "Давно пора обновиться" : "Доступно обновление"} — актуальная v{current}</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
 }
 
-export { AgentVersionBadge, CURRENT_AGENT_VERSION };
+export { AgentVersionBadge };
 
 type AgentRow = {
   id: string;
@@ -73,13 +93,14 @@ function firstIp(ips: any): string {
 
 export default function Agents() {
   const [search, setSearch] = useState("");
+  const [orgFilter, setOrgFilter] = useState<string>("all");
 
   const { data: agents = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ["agents-list"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("agent_registrations")
-        .select("*, equipment:equipment_id(name)")
+        .select("*, equipment:equipment_id(name), organization:organization_id(name), enrollment_key:enrollment_key_id(label,expires_at)")
         .order("last_seen_at", { ascending: false, nullsFirst: false });
       if (error) throw error;
       return (data ?? []) as unknown as AgentRow[];
@@ -108,15 +129,22 @@ export default function Agents() {
     refetchInterval: 30000,
   });
 
+  const orgList = useMemo(() => {
+    const set = new Map<string, string>();
+    for (const a of agents) if ((a as any).organization?.name) set.set((a as any).organization_id, (a as any).organization.name);
+    return Array.from(set, ([id, name]) => ({ id, name })).sort((x, y) => x.name.localeCompare(y.name));
+  }, [agents]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return agents;
-    return agents.filter((a) =>
+    let list = agents;
+    if (orgFilter !== "all") list = list.filter((a) => (a as any).organization_id === orgFilter);
+    if (!q) return list;
+    return list.filter((a) =>
       [a.hostname, a.agent_id, a.os_type, a.os_version, a.equipment?.name]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q)),
     );
-  }, [agents, search]);
+  }, [agents, search, orgFilter]);
 
   const onlineCount = agents.filter((a) => isOnline(a.last_seen_at)).length;
 
@@ -160,6 +188,15 @@ export default function Agents() {
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-md"
             />
+            <select
+              data-tag="orgFilter-select"
+              value={orgFilter}
+              onChange={(e) => setOrgFilter(e.target.value)}
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="all">Все организации</option>
+              {orgList.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
           </div>
         </CardHeader>
         <CardContent>
@@ -168,6 +205,7 @@ export default function Agents() {
               <TableRow>
                 <TableHead>Статус</TableHead>
                 <TableHead>Hostname</TableHead>
+                <TableHead>Организация</TableHead>
                 <TableHead>OS</TableHead>
                 <TableHead>IP</TableHead>
                 <TableHead>CPU</TableHead>
@@ -180,10 +218,10 @@ export default function Agents() {
             </TableHeader>
             <TableBody>
               {isLoading && (
-                <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Загрузка...</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">Загрузка...</TableCell></TableRow>
               )}
               {!isLoading && filtered.length === 0 && (
-                <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Агенты не зарегистрированы</TableCell></TableRow>
+                <TableRow><TableCell colSpan={11} className="text-center text-muted-foreground py-8">Агенты не зарегистрированы</TableCell></TableRow>
               )}
               {filtered.map((a) => {
                 const online = isOnline(a.last_seen_at);
@@ -197,9 +235,23 @@ export default function Agents() {
                     </TableCell>
                     <TableCell className="font-medium">
                       <Link to={`/agents/${a.id}`} className="hover:underline">
-                        {a.hostname || a.agent_id}
+                        {a.display_name || a.hostname || a.agent_id}
                       </Link>
                       <div className="text-xs text-muted-foreground">{a.agent_id}</div>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {(a as any).organization?.name
+                        ? <span>{(a as any).organization.name}</span>
+                        : <span className="text-muted-foreground">—</span>}
+                      {(a as any).enrollment_key?.label && (
+                        <div className="text-xs text-muted-foreground">
+                          ключ: {(a as any).enrollment_key.label}
+                          {(a as any).enrollment_key.expires_at && (() => {
+                            const d = Math.ceil((new Date((a as any).enrollment_key.expires_at).getTime() - Date.now()) / 86400000);
+                            return <span className={d <= 0 ? "text-destructive" : ""}> · {d > 0 ? `${d} дн.` : "истёк"}</span>;
+                          })()}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm">
                       <div>{a.os_type || "—"}</div>

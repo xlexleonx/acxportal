@@ -25,3 +25,8 @@ dist-ssr
 *.sln
 *.sw?
 nginx/ssl/
+
+# secrets / env
+.env
+.env.*
+!.env.example

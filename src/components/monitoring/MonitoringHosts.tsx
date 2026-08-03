@@ -6,12 +6,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, ArrowLeft, Settings2, RefreshCw, Loader2, Activity } from "lucide-react";
+import { Search, ArrowLeft, Settings2, RefreshCw, Loader2, Activity , ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import HostItemsView from "./HostItemsView";
 import HostDetailDialog from "./HostDetailDialog";
@@ -187,13 +188,18 @@ export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateT
 
       {!hostsLoading && filteredAgents.length > 0 && (
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Агенты AP Agent ({filteredAgents.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+          <Collapsible defaultOpen>
+            <CollapsibleTrigger className="w-full group/apcol">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-data-[state=closed]/apcol:-rotate-90" />
+                  <Activity className="h-4 w-4" />
+                  Агенты AP Agent ({filteredAgents.length})
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -237,7 +243,9 @@ export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateT
                 })}
               </TableBody>
             </Table>
-          </CardContent>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
       )}
 
@@ -248,12 +256,17 @@ export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateT
           const Icon = cfg.icon;
           return (
             <Card key={type}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Icon className="h-4 w-4" />
-                  {cfg.label} ({hostList.length})
-                </CardTitle>
-              </CardHeader>
+              <Collapsible defaultOpen>
+                <CollapsibleTrigger className="w-full group/col">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-data-[state=closed]/col:-rotate-90" />
+                      <Icon className="h-4 w-4" />
+                      {cfg.label} ({hostList.length})
+                    </CardTitle>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
               <CardContent>
                 <Table>
                   <TableHeader>
@@ -326,6 +339,8 @@ export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateT
                   </TableBody>
                 </Table>
               </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
             </Card>
           );
         })}

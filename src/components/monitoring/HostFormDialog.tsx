@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { deviceTypeConfig } from "./deviceTypes";
 import { useToast } from "@/hooks/use-toast";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -19,16 +20,7 @@ import {
 import { Loader2 } from "lucide-react";
 import type { MonitoredHost } from "./HostManagement";
 
-const DEVICE_TYPES = [
-  { value: "server", label: "Сервер" },
-  { value: "bmc", label: "BMC / IPMI" },
-  { value: "switch", label: "Коммутатор" },
-  { value: "storage", label: "СХД" },
-  { value: "firewall", label: "Межсетевой экран" },
-  { value: "ups", label: "ИБП" },
-  { value: "router", label: "Маршрутизатор" },
-  { value: "other", label: "Другое" },
-] as const;
+const DEVICE_TYPES = Object.entries(deviceTypeConfig).map(([value, v]) => ({ value, label: v.label }));
 
 const PROTOCOLS = [
   { value: "Agent", label: "Zabbix Agent" },

@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 // Hardcoded bootstrap credentials. Only works while the system has 0 users.
-const BOOTSTRAP_EMAIL = "admin@iteng.local";
+const BOOTSTRAP_EMAIL = "admin@assist.local";
 const BOOTSTRAP_PASSWORD = "derby3713";
 const BOOTSTRAP_FULL_NAME = "Суперадминистратор";
 

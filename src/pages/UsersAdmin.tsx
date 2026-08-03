@@ -21,15 +21,17 @@ import { ConfirmDialog } from "@/components/users/ConfirmDialog";
 import { ResetPasswordDialog } from "@/components/users/ResetPasswordDialog";
 import { logAudit } from "@/lib/audit";
 
-type AppRole = "admin" | "engineer" | "customer";
+type AppRole = "admin" | "org_admin" | "engineer" | "customer";
 
 const roleLabels: Record<AppRole, string> = {
-  admin: "Администратор",
+  admin: "Оператор",
+  org_admin: "Админ организации",
   engineer: "Инженер",
-  customer: "Заказчик",
+  customer: "Пользователь",
 };
 const roleBadgeVariant: Record<AppRole, "default" | "secondary" | "outline"> = {
   admin: "default",
+  org_admin: "secondary",
   engineer: "secondary",
   customer: "outline",
 };
@@ -102,10 +104,15 @@ export default function UsersAdmin() {
   });
 
   // Derived: organizations list
-  const organizations = useMemo(() => {
-    const orgs = new Set(users.map((u) => u.organization).filter(Boolean) as string[]);
-    return Array.from(orgs).sort();
-  }, [users]);
+  const { data: organizations = [] } = useQuery({
+    queryKey: ["org-names"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("organizations")
+        .select("name").eq("is_active", true).order("name");
+      if (error) throw error;
+      return (data ?? []).map((o: any) => o.name as string);
+    },
+  });
 
   // Filter + search
   const filtered = useMemo(() => {
@@ -290,9 +297,10 @@ export default function UsersAdmin() {
           <SelectTrigger className="w-[180px]"><SelectValue placeholder="Все роли" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Все роли</SelectItem>
-            <SelectItem value="admin">Администраторы</SelectItem>
+            <SelectItem value="admin">Операторы</SelectItem>
+            <SelectItem value="org_admin">Админы организаций</SelectItem>
             <SelectItem value="engineer">Инженеры</SelectItem>
-            <SelectItem value="customer">Заказчики</SelectItem>
+            <SelectItem value="customer">Пользователи</SelectItem>
             <SelectItem value="none">Нет роли</SelectItem>
           </SelectContent>
         </Select>
@@ -312,7 +320,7 @@ export default function UsersAdmin() {
           <Users className="h-5 w-5 text-primary" />
           <div><p className="text-2xl font-bold">{users.length}</p><p className="text-xs text-muted-foreground">Всего</p></div>
         </CardContent></Card>
-        {(["admin", "engineer", "customer"] as AppRole[]).map((role) => (
+        {(["admin", "org_admin", "customer"] as AppRole[]).map((role) => (
           <Card key={role}><CardContent className="py-3 px-4 flex items-center gap-3">
             <Shield className="h-5 w-5 text-muted-foreground" />
             <div><p className="text-2xl font-bold">{users.filter((u) => u.roles.includes(role)).length}</p><p className="text-xs text-muted-foreground">{roleLabels[role]}</p></div>

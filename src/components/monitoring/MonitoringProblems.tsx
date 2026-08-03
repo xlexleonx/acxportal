@@ -60,7 +60,8 @@ interface Props {
 export default function MonitoringProblems({
   problems, alerts, problemsLoading, alertsLoading,
   isStaff, onCreateTicket, onAcknowledge, initialPriorityFilter,
-}: Props) {
+  agentProblems = [],
+}: Props & { agentProblems?: any[] }) {
   const { toast } = useToast();
   const { hasRole, user } = useAuth();
   const isAdmin = hasRole("admin");
@@ -191,7 +192,21 @@ export default function MonitoringProblems({
       if (tid) byTrigger.set(tid, row);
       else byTrigger.set(`ev-${p.eventid}`, row);
     }
-    let list = Array.from(byTrigger.values());
+    const SEV_AGENT: Record<string,string> = { high: "4", average: "3", warning: "2" };
+    const agentRows = (agentProblems || []).map((ap: any, i: number) => ({
+      triggerid: null,
+      eventid: null,
+      host: ap.hostname,
+      hostid: null,
+      name: ap.name + (ap.detail ? ` — ${ap.detail}` : ""),
+      severity: SEV_AGENT[ap.severity] || "3",
+      clock: ap.clock ? String(Math.floor(new Date(ap.clock).getTime() / 1000)) : null,
+      acknowledged: false,
+      source: "agent" as const,
+      agent_id: ap.agent_id,
+      _key: `agent-${ap.agent_id}-${ap.kind}-${i}`,
+    }));
+    let list = [...agentRows, ...Array.from(byTrigger.values())];
     if (!showDismissed) {
       list = list.filter((r) => !r.eventid || !dismissedSet.has(r.eventid));
     }
@@ -203,7 +218,7 @@ export default function MonitoringProblems({
       );
     }
     return list;
-  }, [problemsArr, alertsArr, hostFilter, dismissedSet, showDismissed]);
+  }, [problemsArr, alertsArr, hostFilter, dismissedSet, showDismissed, agentProblems]);
 
   const severityCounts = useMemo(() => {
     const c: Record<string, number> = { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
@@ -578,8 +593,8 @@ export default function MonitoringProblems({
                           <Badge variant={priorityColor(r.severity) as any}>{priorityLabel(r.severity)}</Badge>
                         </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="text-xs">
-                              {r.source === "problem" ? "Проблема" : "Триггер"}
+                            <Badge variant="outline" className={`text-xs ${r.source === "agent" ? "border-cyan-500 text-cyan-500" : ""}`}>
+                              {r.source === "agent" ? "Агент" : r.source === "problem" ? "Проблема" : "Триггер"}
                             </Badge>
                           </TableCell>
                         <TableCell>

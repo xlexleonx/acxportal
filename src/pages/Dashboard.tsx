@@ -144,7 +144,7 @@ export default function Dashboard() {
             const Comp = meta.Component;
             return (
               <div key={w.id} className="relative group">
-                <Comp chartType={w.chartType ?? meta.defaultChart} config={w.config} />
+                <Comp chartType={w.chartType ?? meta.defaultChart} config={w.config} onConfigChange={(c: any) => setWidgetConfig(w.id, { ...(w.config ?? {}), ...c })} />
                 <WidgetMenu
                   instance={w}
                   onChartChange={(t) => setChartType(w.id, t)}

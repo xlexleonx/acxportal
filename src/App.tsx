@@ -14,9 +14,13 @@ import Schedules from "@/pages/Schedules";
 import Protocols from "@/pages/Protocols";
 import Documents from "@/pages/Documents";
 import UsersAdmin from "@/pages/UsersAdmin";
+import ManageKeys from "@/pages/ManageKeys";
+import ProblemRules from "@/pages/ProblemRules";
+import AgentReleases from "@/pages/AgentReleases";
 import AuditLog from "@/pages/AuditLog";
 import HelpReference from "@/pages/HelpReference";
 import Monitoring from "@/pages/Monitoring";
+import FleetHealth from "@/pages/FleetHealth";
 import Notifications from "@/pages/Notifications";
 import Organizations from "@/pages/Organizations";
 import Connections from "@/pages/Connections";
@@ -77,8 +81,12 @@ const App = () => (
               <Route path="/protocols" element={<Protocols />} />
               <Route path="/documents" element={<Documents />} />
               <Route path="/users" element={<UsersAdmin />} />
+              <Route path="/enrollment-keys" element={<ManageKeys />} />
+              <Route path="/problem-rules" element={<ProblemRules />} />
+              <Route path="/agent-releases" element={<AgentReleases />} />
               <Route path="/audit" element={<AuditLog />} />
               <Route path="/monitoring" element={<Monitoring />} />
+              <Route path="/fleet-health" element={<FleetHealth />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/organizations" element={<Organizations />} />
               <Route path="/connections" element={<Connections />} />

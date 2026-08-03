@@ -7,8 +7,7 @@ import {
   LayoutDashboard, Server, CalendarCheck, Ticket, Users, LogOut, UserCircle, MonitorSmartphone,
   ClipboardList, FileArchive, ScrollText, HelpCircle, Activity, Bell, Briefcase,
   Plug, ChevronDown, ChevronRight, Network, ShieldAlert, DoorOpen, ListChecks, Database,
-  MessageSquare, PanelLeftClose, PanelLeftOpen,
-} from "lucide-react";
+  MessageSquare, PanelLeftClose, PanelLeftOpen, KeyRound, SlidersHorizontal , ShieldCheck , Rocket } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,6 +61,7 @@ const sections: { id: string; title: string; adminOnly?: boolean; items: NavItem
     title: "Мониторинг",
     items: [
       { to: "/monitoring", icon: Activity, label: "Мониторинг", roles: [], moduleKey: "monitoring" },
+      { to: "/fleet-health", icon: ShieldCheck, label: "Здоровье парка", roles: [], moduleKey: "monitoring" },
       { to: "/infrastructure-maps", icon: Network, label: "Карта инфраструктуры", roles: [], moduleKey: "monitoring" },
     ],
   },
@@ -80,6 +80,9 @@ const sections: { id: string; title: string; adminOnly?: boolean; items: NavItem
       { to: "/organizations", icon: Briefcase, label: "Организации и Договоры", roles: ["admin"], moduleKey: "organizations" },
       { to: "/connections", icon: Plug, label: "Подключения", roles: ["admin"], moduleKey: "integrations" },
       { to: "/users", icon: Users, label: "Пользователи", roles: ["admin"], moduleKey: "users" },
+      { to: "/enrollment-keys", icon: KeyRound, label: "Ключи регистрации", roles: ["admin"], moduleKey: "users" },
+      { to: "/problem-rules", icon: SlidersHorizontal, label: "Правила проблем", roles: ["admin"], moduleKey: "users" },
+      { to: "/agent-releases", icon: Rocket, label: "Релизы агента", roles: ["admin"], moduleKey: "users" },
       { to: "/audit", icon: ScrollText, label: "Журнал событий", roles: ["admin"], moduleKey: "audit" },
       { to: "/system-reset", icon: ShieldAlert, label: "Сервисные операции", roles: ["admin"], moduleKey: "audit" },
       { to: "/admin/migrations", icon: Database, label: "Миграции БД", roles: ["admin"], moduleKey: "audit" },
@@ -116,12 +119,11 @@ export default function AppSidebar() {
     queryKey: ["sidebar-unread-notifications", user?.id],
     queryFn: async () => {
       if (!user) return 0;
-      const { count } = await supabase
-        .from("notification_log")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("is_read", false);
-      return count ?? 0;
+      // Считаем УНИКАЛЬНЫЕ события (event_id), а не строки-на-канал:
+      // одно событие пишет по строке в notification_log на каждый канал доставки.
+      const { data, error } = await supabase.rpc("unread_notifications_count", { p_user: user.id });
+      if (error) return 0;
+      return (data as number) ?? 0;
     },
     enabled: !!user,
     refetchInterval: 30_000,
@@ -172,20 +174,6 @@ export default function AppSidebar() {
     refetchInterval: 30_000,
   });
 
-  // Zabbix indicator
-  const { data: zabbixActive } = useQuery({
-    queryKey: ["sidebar-zabbix-status"],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("zabbix_connections")
-        .select("id")
-        .eq("is_active", true)
-        .limit(1)
-        .maybeSingle();
-      return !!data;
-    },
-    refetchInterval: 60_000,
-  });
 
   const visibleSection = (section: typeof sections[number]) => {
     if (section.adminOnly && !hasRole("admin")) return null;
@@ -259,7 +247,7 @@ export default function AppSidebar() {
           className="focus:outline-none cursor-pointer"
           tabIndex={-1}
         >
-          <BrandLogo className="h-9 w-auto" />
+          <BrandLogo className="h-10 w-10 rounded-lg" />
         </button>
         {!collapsed && (
           <div className="min-w-0">
@@ -330,16 +318,6 @@ export default function AppSidebar() {
         })}
       </nav>
 
-      {/* Zabbix indicator */}
-      {!collapsed && (<div className="px-3">
-        <div className="text-[11px] flex items-center gap-1.5 px-3 py-1.5 text-sidebar-foreground/40">
-          <span className={cn(
-            "h-1.5 w-1.5 rounded-full",
-            zabbixActive ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/40",
-          )} />
-          Zabbix: {zabbixActive ? "онлайн" : "не настроен"}
-        </div>
-      </div>)}
 
       <div className={cn("py-3 border-t border-sidebar-border", collapsed ? "px-2" : "px-3")}>
         {!collapsed && (hasRole("admin") || hasRole("engineer")) && (

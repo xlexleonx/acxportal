@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import {
   Server, AlertTriangle, Bell, Ticket, MessageSquare, UserPlus, Sparkles,
   FolderArchive, Download, RefreshCw, Upload, Loader2, CheckCircle2, XCircle, X,
+  MonitorSmartphone,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -83,8 +84,19 @@ export function DynamicIsland() {
         invokeZabbix({ body: { action: "getHosts" } }),
         invokeZabbix({ body: { action: "getProblems" } }),
       ]);
+      const hostList = ((h.data?.result as any[]) ?? []);
+      // status='0' — хост включён в мониторинг (не отключён вручную).
+      // available у интерфейса: '2' явно недоступен, '0' ещё не проверен, '1' доступен.
+      // "Онлайн" для шторки = включённые хосты, у которых нет интерфейса в явном '2'.
+      const enabled = hostList.filter((x: any) => String(x.status) === "0");
+      const offline = enabled.filter((x: any) =>
+        Array.isArray(x.interfaces) && x.interfaces.length > 0 &&
+        x.interfaces.every((i: any) => String(i.available) === "2")).length;
+      const hosts = enabled.length;
+      const online = hosts - offline;
       return {
-        hosts: ((h.data?.result as unknown[]) ?? []).length,
+        hosts,
+        online,
         problems: ((p.data?.result as unknown[]) ?? []).length,
       };
     },
@@ -96,6 +108,25 @@ export function DynamicIsland() {
     : zbxConnecting ? "bg-yellow-500"
     : zbxOffline ? "bg-red-500"
     : "bg-emerald-500";
+
+  // --- agents online status ---
+  const { data: agentStats } = useQuery({
+    enabled: !!user,
+    queryKey: ["island-agents", user?.id],
+    refetchInterval: 30_000,
+    staleTime: 25_000,
+    queryFn: async () => {
+      // RLS сам ограничит выборку: оператор видит весь парк, заказчик — свою орг
+      const { data } = await supabase
+        .from("agent_registrations")
+        .select("last_seen_at, is_active");
+      const list = (data ?? []) as { last_seen_at: string | null; is_active: boolean | null }[];
+      const cutoff = Date.now() - 10 * 60_000; // 10 минут — порог онлайна
+      const total = list.length;
+      const online = list.filter((a) => a.is_active !== false && a.last_seen_at && new Date(a.last_seen_at).getTime() >= cutoff).length;
+      return { total, online };
+    },
+  });
 
   // --- recent notifications (rotating ticker) ---
   const { data: notifs = [] } = useQuery<NotifRow[]>({
@@ -191,6 +222,39 @@ export function DynamicIsland() {
           <TooltipContent>{dateLong}</TooltipContent>
         </Tooltip>
 
+        {/* Agents segment */}
+        {agentStats && agentStats.total > 0 && (
+          <>
+            <span className="w-px bg-border/60 my-2" />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => navigate("/agents")}
+                  className="flex items-center gap-2 px-3 h-10 hover:bg-muted/40 transition-colors text-xs font-medium"
+                >
+                  <span className="relative flex h-2 w-2 items-center justify-center">
+                    {agentStats.online > 0 && (
+                      <span className="absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping bg-emerald-500" />
+                    )}
+                    <span className={cn("relative inline-flex rounded-full h-2 w-2", agentStats.online > 0 ? "bg-emerald-500" : "bg-muted-foreground/40")} />
+                  </span>
+                  <span className="text-muted-foreground hidden sm:inline">Агенты</span>
+                  <span className="inline-flex items-center gap-1">
+                    <MonitorSmartphone className="h-3 w-3 opacity-70" />
+                    <span className={cn(agentStats.online < agentStats.total && "text-amber-500")}>
+                      {agentStats.online}/{agentStats.total}
+                    </span>
+                  </span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {`Онлайн ${agentStats.online} из ${agentStats.total} · порог 10 мин`}
+              </TooltipContent>
+            </Tooltip>
+          </>
+        )}
+
         {/* Zabbix segment */}
         {active && (
           <>
@@ -217,7 +281,10 @@ export function DynamicIsland() {
                   {zbx && !zbxOffline ? (
                     <>
                       <span className="inline-flex items-center gap-1">
-                        <Server className="h-3 w-3 opacity-70" />{zbx.hosts}
+                        <Server className="h-3 w-3 opacity-70" />
+                        <span className={cn(zbx.online < zbx.hosts && "text-amber-500")}>
+                          {zbx.online}/{zbx.hosts}
+                        </span>
                       </span>
                       <span className={cn(
                         "inline-flex items-center gap-1",
@@ -236,7 +303,7 @@ export function DynamicIsland() {
               <TooltipContent>
                 {zbxConnecting ? "Подключение к Zabbix…"
                   : zbxOffline ? "Коллектор Zabbix недоступен"
-                  : `Подключено · ${zbx?.hosts ?? 0} хостов · ${zbx?.problems ?? 0} активных проблем`}
+                  : `Подключено · ${zbx?.online ?? 0} из ${zbx?.hosts ?? 0} хостов онлайн · ${zbx?.problems ?? 0} активных проблем`}
               </TooltipContent>
             </Tooltip>
           </>

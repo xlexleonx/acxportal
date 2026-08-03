@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Send, Trash2, Pencil, Plus, CheckCircle2, XCircle, AlertCircle, MessageSquare, Mail, Phone, Bell, ToggleLeft, ToggleRight } from "lucide-react";
 import { testChannel } from "@/lib/notify";
+import { usePushSubscription } from "@/hooks/usePushSubscription";
 
 type ChannelType = "telegram" | "mattermost" | "smtp" | "email" | "sms" | "mts_sms" | "a1_sms" | "web_push";
 
@@ -29,6 +30,45 @@ const TYPE_META: Record<ChannelType, { label: string; icon: any; color: string }
   a1_sms: { label: "А1 SMS (smart-sender)", icon: Phone, color: "text-orange-500" },
   web_push: { label: "Браузерные пуши", icon: Bell, color: "text-violet-500" },
 };
+
+function WebPushCard() {
+  const { supported, subscribed, busy, error, enable, disable } = usePushSubscription();
+  const { toast } = useToast();
+  if (!supported) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="py-3 text-sm text-muted-foreground flex items-center gap-2">
+          <Bell className="h-4 w-4" /> Браузерные push-уведомления не поддерживаются в этом браузере.
+        </CardContent>
+      </Card>
+    );
+  }
+  const onToggle = async () => {
+    try {
+      if (subscribed) { await disable(); toast({ title: "Push отключены в этом браузере" }); }
+      else { await enable(); toast({ title: "Push включены в этом браузере" }); }
+    } catch (e: any) {
+      toast({ title: "Не удалось", description: e?.message ?? String(e), variant: "destructive" });
+    }
+  };
+  return (
+    <Card>
+      <CardContent className="py-3 flex items-center gap-3">
+        <Bell className="h-5 w-5 text-violet-500 shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium">Браузерные push-уведомления</div>
+          <div className="text-xs text-muted-foreground truncate">
+            {subscribed ? "Включены — приходят даже при закрытой вкладке" : "Получать уведомления в этом браузере, даже когда портал закрыт"}
+          </div>
+          {error ? <div className="text-xs text-destructive mt-0.5">{error}</div> : null}
+        </div>
+        <Button size="sm" variant={subscribed ? "outline" : "default"} disabled={busy} onClick={onToggle}>
+          {busy ? "…" : subscribed ? "Выключить" : "Включить в этом браузере"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function NotificationChannels() {
   const { user } = useAuth();
@@ -147,8 +187,10 @@ export function NotificationChannels() {
         <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" />Добавить канал</Button>
       </div>
 
+      <WebPushCard />
+
       {channels.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md border p-2 bg-muted/30">
+      <div className="flex flex-wrap items-center gap-2 rounded-md border p-2 bg-muted/30">
           <label className="flex items-center gap-2 text-sm cursor-pointer pl-1">
             <Checkbox
               checked={allChecked ? true : someChecked ? "indeterminate" : false}

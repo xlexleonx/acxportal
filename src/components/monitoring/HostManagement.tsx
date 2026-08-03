@@ -6,9 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Plus, Pencil, Trash2, Loader2, Server, Monitor, HardDrive, Network, Shield, Zap, Router, Link2, Power, PowerOff, X } from "lucide-react";
+import { invokeZabbix } from "@/lib/zabbix-invoke";
+import { Plus, Pencil, Trash2, Loader2, Server, Monitor, HardDrive, Network, Shield, Zap, Router, Link2, Power, PowerOff, X, Download, MonitorCog, DatabaseBackup, PlugZap, Thermometer } from "lucide-react";
+import { deviceTypeConfig, getDeviceTypeConfig } from "./deviceTypes";
 import { HostFormDialog } from "./HostFormDialog";
 import { HostWizardDialog } from "./HostWizardDialog";
 import CMDBSyncDialog from "./CMDBSyncDialog";
@@ -36,20 +39,7 @@ export type MonitoredHost = {
   updated_at: string;
 };
 
-const deviceTypeConfig: Record<string, { label: string; icon: typeof Server; color: string }> = {
-  server: { label: "Сервер", icon: Server, color: "text-blue-500" },
-  bmc: { label: "BMC / IPMI", icon: Monitor, color: "text-orange-500" },
-  switch: { label: "Коммутатор", icon: Network, color: "text-green-500" },
-  storage: { label: "СХД", icon: HardDrive, color: "text-purple-500" },
-  firewall: { label: "Межсетевой экран", icon: Shield, color: "text-red-500" },
-  ups: { label: "ИБП", icon: Zap, color: "text-yellow-500" },
-  router: { label: "Маршрутизатор", icon: Router, color: "text-cyan-500" },
-  other: { label: "Другое", icon: Server, color: "text-muted-foreground" },
-};
 
-export function getDeviceTypeConfig(type: string) {
-  return deviceTypeConfig[type] || deviceTypeConfig.other;
-}
 
 export default function HostManagement() {
   const { toast } = useToast();
@@ -90,6 +80,59 @@ export default function HostManagement() {
     },
   });
 
+  const [importing, setImporting] = useState(false);
+  const importFromZabbix = async () => {
+    setImporting(true);
+    try {
+      const { data, error } = await invokeZabbix({ body: { action: "getHosts" } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const zhosts = (data?.result ?? []) as any[];
+      if (!zhosts.length) { toast({ title: "Zabbix не вернул хостов" }); return; }
+      const seen = new Set<string>();
+      const rows = zhosts.map((zh) => {
+        const ip = (zh.interfaces ?? []).map((i: any) => i.ip).find((x: string) => x) || "0.0.0.0";
+        return {
+          name: zh.name || zh.host || ip,
+          ip_address: ip,
+          zabbix_host_id: String(zh.hostid),
+          device_type: "other" as any,
+          protocol: "Agent" as any,
+          enabled: true,
+        };
+      }).filter((r) => {
+        // дедуп по zabbix_host_id — ON CONFLICT падает на повторе в одной пачке
+        if (seen.has(r.zabbix_host_id)) return false;
+        seen.add(r.zabbix_host_id);
+        return true;
+      });
+      // upsert по уникальному zabbix_host_id — существующие не дублируются,
+      // device_type НЕ перезаписываем у уже размеченных (onConflict ignoreDuplicates)
+      const { error: upErr } = await supabase
+        .from("monitored_hosts")
+        .upsert(rows, { onConflict: "zabbix_host_id", ignoreDuplicates: true });
+      if (upErr) throw upErr;
+      queryClient.invalidateQueries({ queryKey: ["monitored-hosts"] });
+      toast({ title: `Импортировано из Zabbix: ${rows.length}`, description: "Новые хосты добавлены с типом «Другое» — проставьте тип" });
+    } catch (e: any) {
+      toast({ title: "Ошибка импорта", description: e?.message ?? String(e), variant: "destructive" });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const bulkSetType = async (deviceType: string) => {
+    const ids = [...selected];
+    if (!ids.length) return;
+    const { error } = await supabase.from("monitored_hosts").update({ device_type: deviceType as any }).in("id", ids);
+    if (error) {
+      toast({ title: "Ошибка", description: error.message, variant: "destructive" });
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["monitored-hosts"] });
+    toast({ title: `Тип проставлен: ${ids.length}` });
+    setSelected(new Set());
+  };
   const bulkToggle = async (enabled: boolean) => {
     const ids = [...selected];
     if (!ids.length) return;
@@ -166,6 +209,10 @@ export default function HostManagement() {
         </CardTitle>
         {isStaff && (
           <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={importFromZabbix} disabled={importing}>
+              <Download className="h-4 w-4 mr-1.5" />
+              {importing ? "Импорт…" : "Импорт из Zabbix"}
+            </Button>
             <Button size="sm" variant="default" onClick={() => setCmdbSyncOpen(true)}>
               <Link2 className="h-4 w-4 mr-1.5" />
               Синхронизировать с CMDB
@@ -186,6 +233,14 @@ export default function HostManagement() {
           <div className="mb-3 flex items-center gap-2 rounded-md border bg-accent/30 px-3 py-2">
             <span className="text-sm font-medium">Выбрано: {selected.size}</span>
             <div className="ml-auto flex items-center gap-1.5">
+              <Select onValueChange={bulkSetType}>
+                <SelectTrigger className="h-8 w-[170px]"><SelectValue placeholder="Проставить тип" /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(deviceTypeConfig).map(([k, v]) => (
+                    <SelectItem key={k} value={k}>{v.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button size="sm" variant="outline" onClick={() => bulkToggle(true)}>
                 <Power className="h-3.5 w-3.5 mr-1" /> Включить
               </Button>

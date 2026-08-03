@@ -40,14 +40,20 @@ export default async function handler(req: Request): Promise<Response> {
     // Check admin role
     const { data: roles } = await callerClient.from("user_roles").select("role").eq("user_id", caller.id);
     const isAdmin = roles?.some((r: any) => r.role === "admin");
-    if (!isAdmin) {
+    const isOrgAdmin = roles?.some((r: any) => r.role === "org_admin");
+    if (!isAdmin && !isOrgAdmin) {
       return new Response(JSON.stringify({ error: "Доступ запрещён" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { email, password, full_name, organization, phone, position, role } = await req.json();
+    let { email, password, full_name, organization, phone, position, role } = await req.json();
+    if (!isAdmin && isOrgAdmin) {
+      const callerOrg = (await callerClient.from("profiles").select("organization_id, organization").eq("user_id", caller.id).maybeSingle()).data;
+      organization = callerOrg?.organization ?? organization; // форсим свою орг
+      if (role === "admin" || role === "engineer") return new Response(JSON.stringify({ error: "Недостаточно прав для назначения этой роли" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     if (!email || !password) {
       return new Response(JSON.stringify({ error: "Email и пароль обязательны" }), {
@@ -78,8 +84,10 @@ export default async function handler(req: Request): Promise<Response> {
 
     // Update profile with extra fields
     if (organization || phone || position) {
+      const orgId = organization ? (await adminClient.from("organizations").select("id").eq("name", organization).maybeSingle()).data?.id ?? null : null;
       await adminClient.from("profiles").update({
         organization: organization || null,
+        organization_id: orgId,
         phone: phone || null,
         position: position || null,
       }).eq("user_id", userId);

@@ -8,7 +8,8 @@
  */
 
 export type DeviceTypeKey =
-  | "server" | "bmc" | "switch" | "router" | "storage" | "firewall" | "ups" | "other";
+  | "server" | "bmc" | "switch" | "router" | "storage" | "firewall" | "ups"
+  | "vm_windows" | "vm_linux" | "backup_server" | "pdu" | "env_sensor" | "other";
 
 export interface CommandHint {
   label: string;
@@ -140,6 +141,51 @@ const HINTS: Record<DeviceTypeKey, DeviceHints> = {
       { label: "Тест батареи", command: "upscmd -u admin <ups> test.battery.start.quick", description: "Только с согласия" },
     ],
   },
+  vm_windows: {
+    title: "Виртуальная машина (Windows)",
+    metrics: [
+      { key: "system.cpu.util", label: "Загрузка CPU", why: "Перегрузка → деградация сервисов" },
+      { key: "vm.memory.utilization", label: "Память", why: "OOM, утечки, нехватка ОЗУ" },
+      { key: "vfs.fs.size[C:,pused]", label: "Заполнение диска C:", why: "Падение сервисов при 100%" },
+      { key: "system.uptime", label: "Uptime", why: "Обновления Windows требуют перезагрузки" },
+    ],
+    commands: [],
+  },
+  vm_linux: {
+    title: "Виртуальная машина (Linux)",
+    metrics: [
+      { key: "system.cpu.util", label: "Загрузка CPU", why: "Перегрузка → деградация сервисов" },
+      { key: "vm.memory.utilization", label: "Память", why: "OOM, swap, утечки" },
+      { key: "vfs.fs.size[/,pused]", label: "Заполнение /", why: "Падение сервисов при 100%" },
+      { key: "system.uptime", label: "Uptime", why: "Ядро/пакеты требуют перезагрузки" },
+    ],
+    commands: [],
+  },
+  backup_server: {
+    title: "Сервер резервного копирования",
+    metrics: [
+      { key: "vfs.fs.size[/backup,pused]", label: "Заполнение хранилища", why: "Нет места → бэкапы не создаются" },
+      { key: "system.cpu.util", label: "Загрузка CPU", why: "Окно бэкапа не укладывается" },
+      { key: "system.uptime", label: "Uptime", why: "Незапланированные перезагрузки" },
+    ],
+    commands: [],
+  },
+  pdu: {
+    title: "PDU (распределение питания)",
+    metrics: [
+      { key: "sensor.load", label: "Нагрузка по фазам", why: "Перекос/перегрузка → отключение стойки" },
+      { key: "sensor.power", label: "Потребляемая мощность", why: "Приближение к пределу линии" },
+    ],
+    commands: [],
+  },
+  env_sensor: {
+    title: "Датчик среды",
+    metrics: [
+      { key: "sensor.temp", label: "Температура", why: "Перегрев серверной → отказ оборудования" },
+      { key: "sensor.humidity", label: "Влажность", why: "Конденсат / статика" },
+    ],
+    commands: [],
+  },
   other: {
     title: "Прочее оборудование",
     metrics: [
@@ -159,5 +205,6 @@ export function getDeviceHints(deviceType?: string | null): DeviceHints {
 }
 
 export const ALL_DEVICE_TYPES: DeviceTypeKey[] = [
-  "server", "bmc", "switch", "router", "storage", "firewall", "ups", "other",
+  "server", "bmc", "switch", "router", "storage", "firewall", "ups",
+  "vm_windows", "vm_linux", "backup_server", "pdu", "env_sensor", "other",
 ];

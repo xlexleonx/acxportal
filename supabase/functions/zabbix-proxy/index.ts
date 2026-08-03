@@ -91,7 +91,7 @@ function getActionDef(action: string, extraParams?: Record<string, unknown>): Ac
         method: "host.get",
         params: {
           output: ["hostid", "host", "name", "status", "available", "snmp_available"],
-          selectInterfaces: ["ip", "dns", "port", "type"],
+          selectInterfaces: ["ip", "dns", "port", "type", "available"],
           selectGroups: ["groupid", "name"],
           sortfield: "name",
           ...extraParams,

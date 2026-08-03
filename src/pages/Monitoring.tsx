@@ -84,6 +84,16 @@ export default function Monitoring() {
   const { data: hosts = [], isLoading: hostsLoading, error: hostsError, refetch: refetchHosts } = useZabbixData("getHosts", isZabbixConfigured);
   const { data: problems = [], isLoading: problemsLoading, refetch: refetchProblems } = useZabbixData("getProblems", isZabbixConfigured);
   const { data: alerts = [], isLoading: alertsLoading, refetch: refetchAlerts } = useZabbixData("getAlerts", isZabbixConfigured);
+  const { data: agentProblemsResp } = useQuery({
+    queryKey: ["agent-problems"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("agent-problems", { body: {} });
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 30000,
+  });
+  const agentProblems = agentProblemsResp?.problems ?? [];
   const { data: items = [] } = useZabbixData("getItems", isZabbixConfigured);
   const { data: graphs = [] } = useZabbixData("getGraphs", isZabbixConfigured);
   const { data: scripts = [] } = useZabbixData("getScripts", isZabbixConfigured);
@@ -224,7 +234,7 @@ export default function Monitoring() {
         </TabsContent>
 
         <TabsContent value="problems">
-          <MonitoringProblems
+          <MonitoringProblems agentProblems={agentProblems}
             problems={problems}
             alerts={alerts}
             problemsLoading={problemsLoading}

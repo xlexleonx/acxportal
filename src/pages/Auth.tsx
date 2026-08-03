@@ -33,7 +33,7 @@ export default function Auth() {
   }, []);
 
   const handleBootstrap = async () => {
-    if (!confirm("Создать суперадминистратора admin@iteng.local с паролем derby3713? Это работает только при пустой БД.")) return;
+    if (!confirm("Создать суперадминистратора admin@assist.local с паролем derby3713? Это работает только при пустой БД.")) return;
     setBootstrapBusy(true);
     const { data, error } = await supabase.functions.invoke("bootstrap-admin", { method: "POST" });
     setBootstrapBusy(false);
@@ -92,7 +92,7 @@ export default function Auth() {
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex justify-center">
             {/* В тёмной теме — оригинал; в светлой — инвертируем чёрный в красный (--primary) через CSS-фильтр */}
-            <BrandLogo className="h-20 w-auto mx-auto dark:[filter:none] [filter:brightness(0)_saturate(100%)_invert(18%)_sepia(98%)_saturate(7000%)_hue-rotate(355deg)_brightness(95%)_contrast(115%)]" />
+            <BrandLogo className="h-20 w-auto mx-auto" />
           </div>
           <CardTitle className="font-heading text-2xl">Assist Portal</CardTitle>
           <CardDescription>Портал технической поддержки</CardDescription>
@@ -150,7 +150,7 @@ export default function Auth() {
             </div>
             <p className="text-xs text-muted-foreground">
               В системе ещё нет пользователей. Создайте суперадминистратора одним кликом —
-              логин <code>admin@iteng.local</code>, пароль <code>derby3713</code>.
+              логин <code>admin@assist.local</code>, пароль <code>derby3713</code>.
               Сразу после входа смените пароль в профиле.
             </p>
             <Button size="sm" className="w-full" onClick={handleBootstrap} disabled={bootstrapBusy}>

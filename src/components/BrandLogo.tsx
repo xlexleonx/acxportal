@@ -1,10 +1,3 @@
-import logo from "@/assets/logo.png";
-
-interface BrandLogoProps {
-  className?: string;
-  alt?: string;
-}
-
-export default function BrandLogo({ className = "h-9 w-auto", alt = "Assist Portal" }: BrandLogoProps) {
-  return <img src={logo} alt={alt} className={className} />;
+export default function BrandLogo({ className = "" }: { className?: string }) {
+  return <img src="/portal-logo.svg" alt="AP" className={className} style={{ objectFit: "contain" }} />;
 }

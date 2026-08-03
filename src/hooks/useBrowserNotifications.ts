@@ -25,7 +25,9 @@ export function useBrowserNotifications() {
         { event: "INSERT", schema: "public", table: "notification_log", filter: `user_id=eq.${user.id}` },
         (payload) => {
           const row: any = payload.new;
-          if (row.channel_type !== "web_push") return;
+          // Браузерные пуши рисует Service Worker (push-событие), даже при закрытой вкладке.
+          // Здесь их НЕ дублируем, иначе при открытой вкладке придёт два уведомления.
+          if (row.channel_type === "web_push") return;
           try {
             const n = new Notification(row.title || "Уведомление", {
               body: row.body || "",

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { invokeZabbix } from "@/lib/zabbix-invoke";
 import { Link } from "react-router-dom";
@@ -77,6 +78,230 @@ function EquipmentHealthWidget() {
 }
 
 
+function AgentProblemsWidget({ config, onConfigChange }: any = {}) {
+  const [orgFilter, setOrgFilterState] = useState<string>(config?.orgFilter ?? "all");
+  const setOrgFilter = (v: string) => { setOrgFilterState(v); onConfigChange?.({ orgFilter: v }); };
+  const { data } = useQuery({
+    queryKey: ["agent-problems-widget"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("agent-problems", { body: {} });
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 30000,
+  });
+  const { data: orgs = [] } = useQuery({
+    queryKey: ["orgs-min-widget"],
+    queryFn: async () => (await supabase.from("organizations").select("id, name").order("name")).data ?? [],
+  });
+  const orgName = (id: string | null) => (orgs as any[]).find((o) => o.id === id)?.name ?? "—";
+  const all: any[] = data?.problems ?? [];
+  // организации, в которых есть проблемы (для селекта; показываем если >1)
+  const orgIds = Array.from(new Set(all.map((p) => p.organization_id).filter(Boolean)));
+  const problems = orgFilter === "all" ? all : all.filter((p) => p.organization_id === orgFilter);
+  const high = problems.filter((p) => p.severity === "high").length;
+  const avg = problems.filter((p) => p.severity === "average").length;
+  return (
+    <div className="h-full flex flex-col">
+      <div className="dashboard-drag-handle flex items-center gap-2 px-3 py-2 border-b shrink-0 cursor-move">
+        <AlertTriangle className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold">Проблемы агентов</span>
+      </div>
+      <div className="p-3 flex-1 flex flex-col min-h-0">
+      {orgIds.length > 1 && (
+        <select value={orgFilter} onChange={(e) => setOrgFilter(e.target.value)}
+          className="mb-2 h-8 rounded-md border border-input bg-background px-2 text-xs">
+          <option value="all">Все организации ({all.length})</option>
+          {orgIds.map((id: any) => (
+            <option key={id} value={id}>{orgName(id)} ({all.filter((p) => p.organization_id === id).length})</option>
+          ))}
+        </select>
+      )}
+      <div className="flex gap-2 mb-2">
+        <div className="flex-1 rounded-lg border p-2 text-center">
+          <div className="text-2xl font-bold text-destructive">{high}</div>
+          <div className="text-[11px] text-muted-foreground">критичных</div>
+        </div>
+        <div className="flex-1 rounded-lg border p-2 text-center">
+          <div className="text-2xl font-bold text-orange-500">{avg}</div>
+          <div className="text-[11px] text-muted-foreground">предупреждений</div>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto space-y-1.5">
+        {problems.length === 0 ? (
+          <div className="text-sm text-muted-foreground text-center py-4">Проблем нет</div>
+        ) : problems.slice(0, 12).map((p, i) => (
+          <Link to={`/monitoring?tab=problems`} key={i} className="block rounded-md border p-2 hover:bg-muted/40 transition-colors">
+            <div className="flex items-start gap-2">
+              <span className={cn("mt-1 h-2 w-2 rounded-full shrink-0", p.severity === "high" ? "bg-destructive" : "bg-orange-500")} />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium truncate">{p.name}</div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {p.hostname} · {p.detail}{orgFilter === "all" && orgIds.length > 1 ? ` · ${orgName(p.organization_id)}` : ""}
+                </div>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+      <Link to="/monitoring?tab=problems" className="block text-xs text-primary hover:underline text-center py-1 mt-1">Все проблемы →</Link>
+      </div>
+    </div>
+  );
+}
+function OrgOverviewWidget({ config, onConfigChange }: any = {}) {
+  const [orgId, setOrgIdState] = useState<string>(config?.orgId ?? "");
+  const setOrgId = (v: string) => { setOrgIdState(v); onConfigChange?.({ orgId: v }); };
+  const { data: orgs = [] } = useQuery({
+    queryKey: ["orgs-overview"],
+    queryFn: async () => (await supabase.from("organizations").select("id, name, is_demo, demo_expires_at").order("name")).data ?? [],
+  });
+  const org = (orgs as any[]).find((o) => o.id === orgId);
+  const { data: sum } = useQuery({
+    queryKey: ["org-overview-sum", orgId],
+    enabled: !!orgId,
+    refetchInterval: 60000,
+    queryFn: async () => {
+      const [agents, tickets, equip, keys, probResp] = await Promise.all([
+        supabase.from("agent_registrations").select("agent_id, last_seen_at").eq("organization_id", orgId),
+        supabase.from("tickets").select("status").eq("organization_id", orgId),
+        supabase.from("equipment").select("id").eq("organization_id", orgId),
+        supabase.from("agent_enrollment_keys").select("tariff, is_active, expires_at").eq("organization_id", orgId).eq("is_active", true).order("created_at", { ascending: false }).limit(1),
+        supabase.functions.invoke("agent-problems", { body: {} }),
+      ]);
+      const now = Date.now();
+      const ag = agents.data ?? [];
+      const online = ag.filter((a: any) => a.last_seen_at && (now - new Date(a.last_seen_at).getTime()) < 600000).length;
+      const tk = tickets.data ?? [];
+      const openT = tk.filter((t: any) => !["resolved", "closed", "cancelled"].includes(t.status)).length;
+      const probs = (probResp.data?.problems ?? []).filter((p: any) => p.organization_id === orgId);
+      return {
+        agentsTotal: ag.length, agentsOnline: online,
+        ticketsOpen: openT, ticketsTotal: tk.length,
+        equipment: (equip.data ?? []).length,
+        tariff: keys.data?.[0]?.tariff ?? null,
+        high: probs.filter((p: any) => p.severity === "high").length,
+        avg: probs.filter((p: any) => p.severity === "average").length,
+      };
+    },
+  });
+  const TARIFF: Record<string, string> = { demo: "Демо", basic: "Базовая", extended: "Расширенная" };
+  return (
+    <div className="h-full flex flex-col">
+      <div className="dashboard-drag-handle flex items-center gap-2 px-3 py-2 border-b shrink-0 cursor-move">
+        <Building2 className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold truncate">{org ? org.name : "Обзор организации"}</span>
+      </div>
+      <div className="p-3 flex-1 flex flex-col min-h-0">
+      <select value={orgId} onChange={(e) => setOrgId(e.target.value)}
+        className="mb-3 h-9 rounded-md border border-input bg-background px-2 text-sm font-medium">
+        <option value="">Выберите организацию…</option>
+        {(orgs as any[]).map((o) => <option key={o.id} value={o.id}>{o.name}{o.is_demo ? " (демо)" : ""}</option>)}
+      </select>
+      {!orgId ? (
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Выберите организацию для сводки</div>
+      ) : !sum ? (
+        <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">Загрузка…</div>
+      ) : (
+        <div className="flex-1 overflow-y-auto space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            {sum.tariff && <Badge variant="secondary">{TARIFF[sum.tariff] ?? sum.tariff}</Badge>}
+            {org?.is_demo && <Badge variant="outline" className="border-cyan-500 text-cyan-500">Демо{org.demo_expires_at ? ` · до ${format(new Date(org.demo_expires_at), "dd.MM.yy")}` : ""}</Badge>}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border p-2">
+              <div className="text-lg font-bold">{sum.agentsOnline}<span className="text-sm text-muted-foreground">/{sum.agentsTotal}</span></div>
+              <div className="text-[11px] text-muted-foreground">агентов онлайн</div>
+            </div>
+            <div className="rounded-lg border p-2">
+              <div className="text-lg font-bold">{sum.equipment}</div>
+              <div className="text-[11px] text-muted-foreground">оборудование</div>
+            </div>
+            <div className="rounded-lg border p-2">
+              <div className="text-lg font-bold">{sum.ticketsOpen}<span className="text-sm text-muted-foreground">/{sum.ticketsTotal}</span></div>
+              <div className="text-[11px] text-muted-foreground">заявок открыто</div>
+            </div>
+            <div className="rounded-lg border p-2">
+              <div className="text-lg font-bold">
+                {sum.high > 0 && <span className="text-destructive">{sum.high}</span>}
+                {sum.high > 0 && sum.avg > 0 && <span className="text-muted-foreground"> · </span>}
+                {sum.avg > 0 && <span className="text-orange-500">{sum.avg}</span>}
+                {sum.high === 0 && sum.avg === 0 && <span className="text-green-500">0</span>}
+              </div>
+              <div className="text-[11px] text-muted-foreground">крит · предупр</div>
+            </div>
+          </div>
+          <Link to="/monitoring?tab=problems" className="block text-xs text-primary hover:underline text-center py-1">Проблемы организации →</Link>
+        </div>
+      )}
+      </div>
+    </div>
+  );
+}
+function FleetHealthWidget({ config, onConfigChange }: any = {}) {
+  const [orgFilter, setOrgFilterState] = useState<string>(config?.orgFilter ?? "all");
+  const setOrgFilter = (v: string) => { setOrgFilterState(v); onConfigChange?.({ orgFilter: v }); };
+  const { data } = useQuery({
+    queryKey: ["fleet-health-widget"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("agent-problems", { body: {} });
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 60000,
+  });
+  const { data: orgs = [] } = useQuery({
+    queryKey: ["orgs-min-fleet"],
+    queryFn: async () => (await supabase.from("organizations").select("id, name").order("name")).data ?? [],
+  });
+  const orgName = (id: string | null) => (orgs as any[]).find((o) => o.id === id)?.name ?? "—";
+  const all: any[] = data?.problems ?? [];
+  const orgIds = Array.from(new Set(all.map((p) => p.organization_id).filter(Boolean)));
+  // только предиктивные виды (прогноз отказа железа)
+  const PRED = new Set(["ssd_wear", "disk_degrading", "temp_trend", "smart", "disk_fill"]);
+  const preds = all.filter((p) => PRED.has(p.kind) && (orgFilter === "all" || p.organization_id === orgFilter));
+  // сгруппировать по хосту, худший severity вверх
+  const byHost: Record<string, any[]> = {};
+  for (const p of preds) (byHost[p.hostname] ||= []).push(p);
+  const rank: Record<string, number> = { high: 3, average: 2, warning: 1 };
+  const hosts = Object.entries(byHost)
+    .map(([host, list]) => ({ host, list, org: list[0].organization_id, worst: Math.max(...list.map((x) => rank[x.severity] || 0)) }))
+    .sort((a, b) => b.worst - a.worst);
+  return (
+    <div className="h-full flex flex-col">
+      <div className="dashboard-drag-handle flex items-center gap-2 px-3 py-2 border-b shrink-0 cursor-move">
+        <ShieldCheck className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold">Здоровье парка · прогноз отказов</span>
+      </div>
+      <div className="p-3 flex-1 flex flex-col min-h-0">
+        {orgIds.length > 1 && (
+          <select value={orgFilter} onChange={(e) => setOrgFilter(e.target.value)}
+            className="mb-2 h-8 rounded-md border border-input bg-background px-2 text-xs">
+            <option value="all">Все организации</option>
+            {orgIds.map((id: any) => <option key={id} value={id}>{orgName(id)}</option>)}
+          </select>
+        )}
+        <div className="flex-1 overflow-y-auto space-y-1.5">
+          {hosts.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-6">Рисков отказа не выявлено</div>
+          ) : hosts.map((h) => (
+            <Link to="/monitoring?tab=problems" key={h.host} className="block rounded-md border p-2 hover:bg-muted/40 transition-colors">
+              <div className="flex items-center gap-2 mb-1">
+                <span className={cn("h-2 w-2 rounded-full shrink-0", h.worst >= 3 ? "bg-destructive" : "bg-orange-500")} />
+                <span className="text-sm font-medium truncate flex-1">{h.host}</span>
+                {orgFilter === "all" && orgIds.length > 1 && <span className="text-[10px] text-muted-foreground truncate">{orgName(h.org)}</span>}
+              </div>
+              {h.list.slice(0, 3).map((p, i) => (
+                <div key={i} className="text-[11px] text-muted-foreground truncate pl-4">• {p.name} — {p.detail}</div>
+              ))}
+            </Link>
+          ))}
+        </div>
+        <Link to="/monitoring?tab=problems" className="block text-xs text-primary hover:underline text-center py-1 mt-1">Все прогнозы →</Link>
+      </div>
+    </div>
+  );
+}
 /* ============ Types ============ */
 export type ChartType = "bar" | "pie" | "donut" | "line" | "area" | "radial" | "list";
 
@@ -899,6 +1124,26 @@ const SavedGraphsWidget: WidgetMeta["Component"] = () => {
 
 /* ============ Registry ============ */
 export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
+  "fleet-health": {
+    type: "fleet-health", title: "Здоровье парка (прогноз)",
+    description: "Железо по близости к отказу: износ SSD, деградация дисков, перегрев, заполнение — худшие сверху.",
+    category: "Мониторинг", icon: ShieldCheck, defaultW: 4, defaultH: 6, minW: 3, minH: 5,
+    Component: FleetHealthWidget,
+  },
+
+  "org-overview": {
+    type: "org-overview", title: "Обзор организации",
+    description: "Сводка по одной организации: тариф, демо-статус, агенты, оборудование, заявки, проблемы.",
+    category: "Мониторинг", icon: Building2, defaultW: 4, defaultH: 6, minW: 3, minH: 5,
+    Component: OrgOverviewWidget,
+  },
+
+  "agent-problems": {
+    type: "agent-problems", title: "Проблемы агентов",
+    description: "Сводка проблем от агентов: критичные и предупреждения, топ-список.",
+    category: "Мониторинг", icon: AlertTriangle, defaultW: 4, defaultH: 6, minW: 3, minH: 4,
+    Component: AgentProblemsWidget,
+  },
   "summary": {
     type: "summary", title: "Сводка", description: "Ключевые показатели: ЦОД, оборудование, заявки, протоколы.",
     category: "Сводка", icon: Building2, defaultW: 12, defaultH: 3, minW: 4, minH: 3,

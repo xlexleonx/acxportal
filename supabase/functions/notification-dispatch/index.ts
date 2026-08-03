@@ -1,6 +1,7 @@
 // Notification dispatcher: enqueue + send via webhooks (Telegram, Mattermost, Email-webhook, SMS-webhook)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import webpush from "npm:web-push@3.6.7";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,6 +9,7 @@ const corsHeaders = {
 };
 
 type EventInput = {
+  event_id?: string;
   event_type: string;
   priority?: string | null;
   title: string;
@@ -388,6 +390,43 @@ async function sendSmtp(cfg: any, message: string, title: string, overrideEmail?
   }
 }
 
+let vapidReady = false;
+function ensureVapid() {
+  if (vapidReady) return true;
+  const pub = Deno.env.get("VAPID_PUBLIC_KEY");
+  const priv = Deno.env.get("VAPID_PRIVATE_KEY");
+  const subj = Deno.env.get("VAPID_SUBJECT") || "mailto:support@gloars.by";
+  if (!pub || !priv) return false;
+  webpush.setVapidDetails(subj, pub, priv);
+  vapidReady = true;
+  return true;
+}
+
+// Возвращает { ok, status, body, gone } — gone=true означает протухшую подписку (404/410),
+// её канал надо выключить, чтобы не долбить мёртвый endpoint.
+async function sendWebPush(cfg: any, title: string, message: string, event: EventInput) {
+  if (!ensureVapid()) throw new Error("VAPID ключи не заданы (VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY)");
+  if (!cfg?.endpoint || !cfg?.keys?.p256dh || !cfg?.keys?.auth) {
+    throw new Error("web_push: в config нужны endpoint и keys.p256dh/auth");
+  }
+  const subscription = { endpoint: cfg.endpoint, keys: { p256dh: cfg.keys.p256dh, auth: cfg.keys.auth } };
+  const payload = JSON.stringify({
+    title: title || "Assist Portal",
+    body: message || "",
+    priority: event.priority ?? null,
+    tag: (event.payload as any)?.tag ?? event.event_type,
+    url: (event.payload as any)?.url ?? "/",
+  });
+  try {
+    const res: any = await webpush.sendNotification(subscription, payload, { TTL: 3600 });
+    return { ok: true, status: res?.statusCode ?? 201, body: "sent", gone: false };
+  } catch (e: any) {
+    const status = e?.statusCode ?? 0;
+    const gone = status === 404 || status === 410;
+    return { ok: false, status, body: String(e?.body ?? e?.message ?? e).slice(0, 500), gone };
+  }
+}
+
 async function deliverToChannel(supabase: any, userId: string, channel: any, event: EventInput) {
   const message = renderTemplate(channel.config?.message_template, {
     title: event.title, body: event.body, event_type: event.event_type, priority: event.priority, payload: event.payload,
@@ -399,11 +438,18 @@ async function deliverToChannel(supabase: any, userId: string, channel: any, eve
     else if (channel.channel_type === "mts_sms") result = await sendMtsSms(channel.config, message, (event as any).override_phone);
     else if (channel.channel_type === "a1_sms") result = await sendA1Sms(channel.config, message, (event as any).override_phone);
     else if (channel.channel_type === "smtp") result = await sendSmtp(channel.config, message, event.title, (event as any).override_email);
-    else if (channel.channel_type === "web_push") result = { ok: true, status: 200, body: "queued for browser" };
+    else if (channel.channel_type === "web_push") {
+      const wp = await sendWebPush(channel.config, event.title, message, event);
+      if (wp.gone) {
+        // подписка протухла — выключаем канал, чтобы не слать в мёртвый endpoint
+        await supabase.from("notification_channels").update({ enabled: false, verified: false, last_test_status: "gone", last_test_error: "Подписка недействительна (протухла)" }).eq("id", channel.id);
+      }
+      result = { ok: wp.ok, status: wp.status, body: wp.body };
+    }
     else result = await sendWebhook(channel.config, message, event.title, event);
 
     await supabase.from("notification_log").insert({
-      user_id: userId, channel_id: channel.id, channel_type: channel.channel_type,
+      user_id: userId, channel_id: channel.id, channel_type: channel.channel_type, event_id: event.event_id ?? null,
       event_type: event.event_type, priority: event.priority ?? null,
       title: event.title, body: event.body ?? null, payload: event.payload ?? null,
       status: result.ok ? "sent" : "failed", attempts: 1,
@@ -413,7 +459,7 @@ async function deliverToChannel(supabase: any, userId: string, channel: any, eve
     return result;
   } catch (e: any) {
     await supabase.from("notification_log").insert({
-      user_id: userId, channel_id: channel.id, channel_type: channel.channel_type,
+      user_id: userId, channel_id: channel.id, channel_type: channel.channel_type, event_id: event.event_id ?? null,
       event_type: event.event_type, priority: event.priority ?? null,
       title: event.title, body: event.body ?? null, payload: event.payload ?? null,
       status: "failed", attempts: 1, error: String(e?.message ?? e).slice(0, 1000),
@@ -465,6 +511,9 @@ export default async function handler(req: Request): Promise<Response> {
     );
 
     const event = (await req.json()) as EventInput;
+    // один id на событие — все строки-каналы в notification_log получат его,
+    // чтобы бейдж считал события, а не доставки по каналам
+    event.event_id = event.event_id ?? crypto.randomUUID();
     if (!event?.event_type || !event?.title) {
       return new Response(JSON.stringify({ error: "event_type и title обязательны" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }

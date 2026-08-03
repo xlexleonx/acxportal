@@ -12,15 +12,23 @@ import { logAudit } from "@/lib/audit";
 import type { UserProfile } from "@/pages/UsersAdmin";
 import { NON_ADMIN_MODULES } from "@/lib/modules";
 
-type AppRole = "admin" | "engineer" | "customer";
+type AppRole = "admin" | "org_admin" | "engineer" | "customer";
 
 const roleLabels: Record<AppRole, string> = {
-  admin: "Администратор",
+  admin: "Оператор",
+  org_admin: "Админ организации",
   engineer: "Инженер",
-  customer: "Заказчик",
+  customer: "Пользователь",
 };
 
 const MODULES = NON_ADMIN_MODULES;
+
+// Тарифные пресеты доступа к модулям. Стартовая точка — оператор может дотюнить галочками.
+const MODULE_PRESETS: { label: string; keys: string[] }[] = [
+  { label: "Демо",        keys: ["dashboard", "equipment", "monitoring", "tickets", "help"] },
+  { label: "Базовая",     keys: ["dashboard", "tickets", "notifications", "equipment", "monitoring", "help"] },
+  { label: "Расширенная", keys: ["dashboard", "tickets", "notifications", "equipment", "monitoring", "help", "documents", "schedules", "protocols"] },
+];
 
 interface EditUserDialogProps {
   userId: string;
@@ -143,7 +151,7 @@ export function EditUserDialog({ userId, users, organizations, onClose }: EditUs
           <div className="space-y-2">
             <Label>Роли</Label>
             <div className="space-y-2">
-              {(["admin", "engineer", "customer"] as AppRole[]).map((role) => (
+              {(["admin", "org_admin", "engineer", "customer"] as AppRole[]).map((role) => (
                 <div key={role} className="flex items-center gap-2">
                   <Checkbox
                     id={`role-${role}`}
@@ -164,6 +172,20 @@ export function EditUserDialog({ userId, users, organizations, onClose }: EditUs
             <div className="space-y-2">
               <Label>Доступ к модулям</Label>
               <p className="text-xs text-muted-foreground">Отметьте модули, к которым пользователь будет иметь доступ</p>
+              <div className="flex flex-wrap gap-2 pb-1">
+                {MODULE_PRESETS.map((preset) => (
+                  <Button
+                    key={preset.label}
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 text-xs"
+                    onClick={() => setEditModules(preset.keys)}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 {MODULES.map((m) => (
                   <div key={m.key} className="flex items-center gap-2">

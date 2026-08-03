@@ -1,14 +1,20 @@
-import { useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Cpu, HardDrive, Network } from "lucide-react";
+import { ArrowLeft, Cpu, HardDrive, Network, ShieldAlert, Pencil, Trash2, Save, X } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -31,6 +37,10 @@ export default function AgentDetail() {
   const qc = useQueryClient();
   const { hasRole } = useAuth();
   const isAdmin = hasRole("admin");
+  const navigate = useNavigate();
+  const [editing, setEditing] = useState(false);
+  const [nameVal, setNameVal] = useState("");
+  const [noteVal, setNoteVal] = useState("");
 
   const { data: agent } = useQuery({
     queryKey: ["agent", id],
@@ -64,6 +74,23 @@ export default function AgentDetail() {
     refetchInterval: 30000,
   });
 
+  const { data: prognosis } = useQuery({
+    queryKey: ["agent-prognosis", agent?.agent_id],
+    enabled: !!agent?.agent_id,
+    refetchInterval: 60000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("agent-problems", { body: {} });
+      if (error) throw error;
+      return (data?.problems ?? []).filter((p: any) => p.agent_id === agent.agent_id);
+    },
+  });
+  const { data: orgOptions = [] } = useQuery({
+    queryKey: ["orgs-min-detail"],
+    queryFn: async () => {
+      const { data } = await supabase.from("organizations").select("id, name").order("name");
+      return data ?? [];
+    },
+  });
   const { data: equipmentList = [] } = useQuery({
     queryKey: ["equipment-min"],
     enabled: isAdmin,
@@ -83,6 +110,51 @@ export default function AgentDetail() {
     }));
   }, [metrics]);
 
+  const orgMut = useMutation({
+    mutationFn: async (organization_id: string) => {
+      // ключ того же тенанта (для отображения «чей ключ/срок»), если есть
+      const { data: k } = await supabase.from("agent_enrollment_keys")
+        .select("id").eq("organization_id", organization_id).eq("is_active", true)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const { error } = await supabase.from("agent_registrations")
+        .update({ organization_id, enrollment_key_id: k?.id ?? null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["agent-detail", id] }),
+  });
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("agent_registrations")
+        .update({ display_name: nameVal.trim() || null, notes: noteVal.trim() || null })
+        .eq("id", id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agent", id] });
+      setEditing(false);
+      toast({ title: "Сохранено" });
+    },
+    onError: (e: any) => toast({ title: "Ошибка", description: e.message, variant: "destructive" }),
+  });
+  const deleteMut = useMutation({
+    mutationFn: async (hard: boolean) => {
+      if (hard) {
+        const { error } = await supabase.from("agent_registrations").delete().eq("id", id!);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("agent_registrations")
+          .update({ is_active: false }).eq("id", id!);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      toast({ title: "Агент удалён" });
+      navigate("/agents");
+    },
+    onError: (e: any) => toast({ title: "Ошибка", description: e.message, variant: "destructive" }),
+  });
   const linkMut = useMutation({
     mutationFn: async (equipment_id: string | null) => {
       const { error } = await supabase
@@ -104,6 +176,8 @@ export default function AgentDetail() {
 
   const online = isOnline(agent.last_seen_at);
   const disks: any[] = Array.isArray(latest?.disk_metrics) ? latest.disk_metrics : [];
+  const diskForecast: any[] = Array.isArray(latest?.disk_forecast) ? latest.disk_forecast : [];
+  const fcByDevice = (dev: string) => diskForecast.find((f: any) => f.device === dev);
   const networksRaw: any[] = Array.isArray(latest?.network_metrics) ? latest.network_metrics : [];
 
   const pickIp = (n: any): string | null => {
@@ -152,16 +226,58 @@ export default function AgentDetail() {
       </div>
 
       <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-bold tracking-tight">{agent.hostname || agent.agent_id}</h1>
-            <AgentVersionBadge version={agent.agent_version} />
-          </div>
-          <p className="text-sm text-muted-foreground font-mono">{agent.agent_id}</p>
+        <div className="flex-1 min-w-0">
+          {editing && isAdmin ? (
+            <div className="space-y-2 max-w-md">
+              <Input value={nameVal} onChange={(e) => setNameVal(e.target.value)} placeholder={agent.hostname || agent.agent_id} />
+              <Textarea value={noteVal} onChange={(e) => setNoteVal(e.target.value)} placeholder="Комментарий оператора (например: серверная 2 этаж, отв. Иванов)" rows={2} />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}><Save className="h-3.5 w-3.5 mr-1" />Сохранить</Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditing(false)}><X className="h-3.5 w-3.5 mr-1" />Отмена</Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-2xl font-bold tracking-tight">{agent.display_name || agent.hostname || agent.agent_id}</h1>
+                <AgentVersionBadge version={agent.agent_version} />
+                {isAdmin && (
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setNameVal(agent.display_name || ""); setNoteVal(agent.notes || ""); setEditing(true); }}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground font-mono">{agent.agent_id}</p>
+              {agent.display_name && agent.hostname && <p className="text-xs text-muted-foreground">хост: {agent.hostname}</p>}
+              {agent.notes && <p className="text-sm mt-1 text-muted-foreground italic">{agent.notes}</p>}
+            </>
+          )}
         </div>
-        <Badge variant={online ? "default" : "secondary"} className={online ? "bg-green-600 hover:bg-green-600" : ""}>
-          {online ? "Онлайн" : "Оффлайн"}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={online ? "default" : "secondary"} className={online ? "bg-green-600 hover:bg-green-600" : ""}>
+            {online ? "Онлайн" : "Оффлайн"}
+          </Badge>
+          {isAdmin && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="outline" className="text-destructive"><Trash2 className="h-3.5 w-3.5 mr-1" />Удалить</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Удалить агента?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    «Скрыть» — агент помечается неактивным, все данные и история сохраняются (можно восстановить). «Удалить полностью» — запись и метрики стираются безвозвратно.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                  <AlertDialogCancel>Отмена</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => deleteMut.mutate(false)}>Скрыть (мягко)</AlertDialogAction>
+                  <AlertDialogAction onClick={() => deleteMut.mutate(true)} className="bg-destructive hover:bg-destructive/90">Удалить полностью</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -175,11 +291,62 @@ export default function AgentDetail() {
           <CardContent><div className="text-sm">{agent.last_seen_at ? formatDistanceToNow(new Date(agent.last_seen_at), { addSuffix: true, locale: ru }) : "—"}</div></CardContent></Card>
       </div>
 
+      {agent.os_type === "bmc" && latest?.bmc_hardware && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Сервер (BMC)</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div><div className="text-muted-foreground text-xs">Вендор</div><div>{latest.bmc_hardware.vendor || "—"}</div></div>
+              <div><div className="text-muted-foreground text-xs">Модель</div><div>{latest.bmc_hardware.model || "—"}</div></div>
+              <div><div className="text-muted-foreground text-xs">Serial</div><div className="font-mono text-xs">{latest.bmc_hardware.serial_number || "—"}</div></div>
+              <div><div className="text-muted-foreground text-xs">Питание</div><div>{latest.bmc_hardware.power_state || "—"}</div></div>
+            </div>
+            {Array.isArray(latest.bmc_hardware.temperatures) && latest.bmc_hardware.temperatures.length > 0 && (
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">Температуры</div>
+                <div className="flex flex-wrap gap-2">
+                  {latest.bmc_hardware.temperatures.map((s: any, i: number) => (
+                    <Badge key={i} variant={s.health === "Critical" ? "destructive" : s.health === "Warning" ? "secondary" : "outline"}>{s.name}: {s.value}°C</Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-4 text-sm">
+              {Array.isArray(latest.bmc_hardware.fans) && <div><span className="text-muted-foreground">Вентиляторы:</span> {latest.bmc_hardware.fans.length}</div>}
+              {Array.isArray(latest.bmc_hardware.psus) && <div><span className="text-muted-foreground">БП:</span> {latest.bmc_hardware.psus.filter((p: any) => p.health === "OK").length}/{latest.bmc_hardware.psus.length} исправны</div>}
+              {Array.isArray(latest.bmc_hardware.drives) && <div><span className="text-muted-foreground">Диски:</span> {latest.bmc_hardware.drives.length}</div>}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {agent.os_type === "snmp" && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">SNMP-устройство</CardTitle></CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <div><span className="text-muted-foreground">Имя (sysName):</span> {latest?.snmp_sys_name || "—"}</div>
+            <div><span className="text-muted-foreground">Описание (sysDescr):</span> <span className="text-xs">{latest?.snmp_sys_descr || "—"}</span></div>
+            <div><span className="text-muted-foreground">Интерфейсов:</span> {networksRaw.length}</div>
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardHeader><CardTitle className="text-base">Привязка</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-            <div><div className="text-muted-foreground">Организация</div><div>{agent.organization?.name || "—"}</div></div>
+            <div>
+              <div className="text-muted-foreground">Организация</div>
+              <div className="flex items-center gap-2 mt-1">
+                <select
+                  defaultValue={agent.organization?.id || ""}
+                  onChange={(e) => e.target.value && orgMut.mutate(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                >
+                  <option value="">— не привязан —</option>
+                  {orgOptions.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </select>
+                {orgMut.isPending && <span className="text-xs text-muted-foreground">сохранение…</span>}
+              </div>
+            </div>
             <div><div className="text-muted-foreground">ЦОД</div><div>{agent.site?.name || "—"}</div></div>
             <div>
               <div className="text-muted-foreground">Оборудование</div>
@@ -235,6 +402,26 @@ export default function AgentDetail() {
         </Card>
       </div>
 
+<Card>
+        <CardHeader><CardTitle className="text-base flex items-center gap-2"><ShieldAlert className="h-4 w-4" /> Прогноз состояния</CardTitle></CardHeader>
+        <CardContent>
+          {!prognosis || prognosis.length === 0 ? (
+            <div className="text-sm text-muted-foreground">Рисков отказа не выявлено</div>
+          ) : (
+            <div className="space-y-2">
+              {prognosis.filter((p: any) => ["ssd_wear","disk_degrading","temp_trend","smart","disk_fill","disk","offline","cpu"].includes(p.kind)).map((p: any, i: number) => (
+                <div key={i} className="flex items-start gap-2 rounded-md border p-2">
+                  <span className={"mt-1 h-2 w-2 rounded-full shrink-0 " + (p.severity === "high" ? "bg-destructive" : "bg-orange-500")} />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{p.name}</div>
+                    <div className="text-xs text-muted-foreground">{p.detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader><CardTitle className="text-base flex items-center gap-2"><HardDrive className="h-4 w-4" /> Диски</CardTitle></CardHeader>
         <CardContent>
@@ -245,7 +432,7 @@ export default function AgentDetail() {
               <TableHeader><TableRow>
                 <TableHead>Точка</TableHead><TableHead>Всего</TableHead>
                 <TableHead>Свободно</TableHead><TableHead>Заполненность</TableHead>
-              </TableRow></TableHeader>
+              <TableHead>Прогноз</TableHead></TableRow></TableHeader>
               <TableBody>
                 {disks.map((d: any, i: number) => {
                   const total = Number(d.total_gb ?? d.total ?? 0) || 0;
@@ -268,6 +455,15 @@ export default function AgentDetail() {
                         >
                           {usedPct}%
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {(() => {
+                          const fc = fcByDevice(mount);
+                          if (!fc || Number(fc.days_left) < 0 || Number(fc.trend_gb_per_day) <= 0.001) return <span className="opacity-60">тренд не определён</span>;
+                          const d = Math.round(Number(fc.days_left));
+                          const crit = d <= 14;
+                          return <span className={crit ? "text-destructive font-medium" : ""}>≈{d} дн. · {Number(fc.trend_gb_per_day).toFixed(1)} ГБ/сут{fc.full_date ? ` · ${fc.full_date}` : ""}</span>;
+                        })()}
                       </TableCell>
                     </TableRow>
                   );

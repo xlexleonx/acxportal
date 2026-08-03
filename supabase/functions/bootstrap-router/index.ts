@@ -20,6 +20,11 @@ import ansibleProxy from "file:///home/deno/functions/ansible-proxy/index.ts";
 import bootstrapAdmin from "file:///home/deno/functions/bootstrap-admin/index.ts";
 import backupStorageCheck from "file:///home/deno/functions/backup-storage-check/index.ts";
 import logStorageScan from "file:///home/deno/functions/log-storage-scan/index.ts";
+import agentRegister from "file:///home/deno/functions/agent-register/index.ts";
+import agentIngest from "file:///home/deno/functions/agent-ingest/index.ts";
+import agentCommand from "file:///home/deno/functions/agent-command/index.ts";
+import agentProblems from "file:///home/deno/functions/agent-problems/index.ts";
+import agentUpdate from "file:///home/deno/functions/agent-update/index.ts";
 
 const routes: Record<string, (req: Request) => Promise<Response>> = {
   "zabbix-proxy": zabbixProxy,
@@ -44,6 +49,11 @@ const routes: Record<string, (req: Request) => Promise<Response>> = {
   "bootstrap-admin": bootstrapAdmin,
   "backup-storage-check": backupStorageCheck,
   "log-storage-scan": logStorageScan,
+  "agent-register": agentRegister,
+  "agent-ingest": agentIngest,
+  "agent-command": agentCommand,
+  "agent-problems": agentProblems,
+  "agent-update": agentUpdate,
 };
 
 Deno.serve(async (req) => {

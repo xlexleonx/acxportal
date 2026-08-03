@@ -38,7 +38,24 @@ export default async function handler(req: Request): Promise<Response> {
 
     const { data: roles } = await callerClient.from("user_roles").select("role").eq("user_id", caller.id);
     const isAdmin = roles?.some((r: any) => r.role === "admin");
-    if (!isAdmin) {
+    const isOrgAdmin = roles?.some((r: any) => r.role === "org_admin");
+
+    // org вызывающего (для ограничения org_admin своей организацией)
+    const callerOrg = (await adminClient.from("profiles").select("organization_id").eq("user_id", caller.id).maybeSingle()).data?.organization_id ?? null;
+    // Гард: org_admin (не оператор) может трогать только юзеров своей орг и не выдавать роли выше своей
+    const orgAdminGuard = async (targetUserId: string | null, requestedRoles: string[] | null) => {
+      if (isAdmin) return null; // оператор — без ограничений
+      if (!callerOrg) return errorRes("У вашей учётной записи не задана организация");
+      if (targetUserId) {
+        const tOrg = (await adminClient.from("profiles").select("organization_id").eq("user_id", targetUserId).maybeSingle()).data?.organization_id ?? null;
+        if (tOrg !== callerOrg) return errorRes("Можно управлять только пользователями своей организации");
+      }
+      if (requestedRoles && requestedRoles.some((r) => r === "admin" || r === "engineer")) {
+        return errorRes("Недостаточно прав для назначения этой роли");
+      }
+      return null;
+    };
+    if (!isAdmin && !isOrgAdmin) {
       return new Response(JSON.stringify({ error: "Доступ запрещён" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -53,11 +70,14 @@ export default async function handler(req: Request): Promise<Response> {
     if (action === "update") {
       const { user_id, full_name, organization, phone, position, roles: newRoles } = body;
       if (!user_id) return errorRes("user_id обязателен");
+      { const g = await orgAdminGuard(user_id, Array.isArray(newRoles) ? newRoles : null); if (g) return g; }
 
       // Update profile
+      const orgId = organization ? (await adminClient.from("organizations").select("id").eq("name", organization).maybeSingle()).data?.id ?? null : null;
       await adminClient.from("profiles").update({
         full_name: full_name ?? null,
         organization: organization ?? null,
+        organization_id: orgId,
         phone: phone ?? null,
         position: position ?? null,
       }).eq("user_id", user_id);
@@ -99,6 +119,7 @@ export default async function handler(req: Request): Promise<Response> {
       const { user_id } = body;
       if (!user_id) return errorRes("user_id обязателен");
       if (user_id === caller.id) return errorRes("Нельзя заблокировать самого себя");
+      { const g = await orgAdminGuard(user_id, null); if (g) return g; }
 
       const isActive = action === "unblock";
 
@@ -123,6 +144,7 @@ export default async function handler(req: Request): Promise<Response> {
     if (action === "reset_password") {
       const { user_id } = body;
       if (!user_id) return errorRes("user_id обязателен");
+      { const g = await orgAdminGuard(user_id, null); if (g) return g; }
 
       // Generate a secure random password
       const chars = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
@@ -146,6 +168,7 @@ export default async function handler(req: Request): Promise<Response> {
       const { user_id } = body;
       if (!user_id) return errorRes("user_id обязателен");
       if (user_id === caller.id) return errorRes("Нельзя удалить самого себя");
+      { const g = await orgAdminGuard(user_id, null); if (g) return g; }
 
       // Check for linked tickets
       const { data: linkedTickets } = await adminClient.from("tickets")

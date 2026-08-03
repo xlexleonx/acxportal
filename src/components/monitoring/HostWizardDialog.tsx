@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { deviceTypeConfig } from "./deviceTypes";
 import { invokeZabbix } from "@/lib/zabbix-invoke";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,16 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, ChevronLeft, ChevronRight, Check, AlertCircle } from "lucide-react";
 import { logAudit } from "@/lib/audit";
 
-const DEVICE_TYPES = [
-  { value: "server", label: "Сервер" },
-  { value: "bmc", label: "BMC / IPMI" },
-  { value: "switch", label: "Коммутатор" },
-  { value: "storage", label: "СХД" },
-  { value: "firewall", label: "Межсетевой экран" },
-  { value: "ups", label: "ИБП" },
-  { value: "router", label: "Маршрутизатор" },
-  { value: "other", label: "Другое" },
-] as const;
+const DEVICE_TYPES = Object.entries(deviceTypeConfig).map(([value, v]) => ({ value, label: v.label }));
 
 interface ProtocolConfig {
   agent?: { enabled: boolean; port: string };
