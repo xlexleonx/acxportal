@@ -8,8 +8,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'Assist Portal';
   const options = {
     body: data.body || '',
-    icon: '/favicon.svg',
-    badge: '/favicon.svg',
+    icon: '/favicon-emerald.svg',
+    badge: '/favicon-emerald.svg',
     tag: data.tag || undefined,
     data: { url: data.url || '/' },
     requireInteraction: data.priority === 'P1' || data.priority === 'critical',
