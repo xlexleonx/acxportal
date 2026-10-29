@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import ThemeToggle from "@/components/ThemeToggle";
 import BrandLogo from "@/components/BrandLogo";
-import { Clock, ShieldPlus } from "lucide-react";
+import { Clock, Headphones, ShieldCheck, ShieldPlus, Sparkles } from "lucide-react";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -83,23 +83,64 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 relative">
-      <div className="absolute top-4 right-4">
-        <ThemeToggle />
+    <div className="auth-shell min-h-screen overflow-hidden px-4 py-6 relative">
+      <div className="auth-grid pointer-events-none absolute inset-0 z-0 opacity-60" />
+      <div className="pointer-events-none absolute -left-24 top-32 z-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 bottom-16 z-0 h-80 w-80 rounded-full bg-destructive/10 blur-3xl" />
+
+      <div className="absolute top-4 right-4 z-10 md:top-6 md:right-6 flex items-center gap-2 rounded-full border border-border/70 bg-card/70 p-1.5 pl-3 backdrop-blur-md">
+        <span className="text-xs text-muted-foreground">Тема</span>
+        <ThemeToggle className="h-8 w-8 rounded-full hover:bg-primary/10 hover:text-primary" />
       </div>
 
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex justify-center">
-            {/* В тёмной теме — оригинал; в светлой — инвертируем чёрный в красный (--primary) через CSS-фильтр */}
-            <BrandLogo className="h-20 w-auto mx-auto" />
+      <div className="relative z-10 mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-10 py-10 lg:grid-cols-[1.05fr_.95fr]">
+        <section className="hidden lg:block pr-10">
+          <div className="mb-10 flex items-center gap-3">
+            <BrandLogo className="h-12 w-auto" />
+            <div className="h-8 w-px bg-border" />
+            <span className="text-sm font-semibold tracking-[0.22em] text-primary">ASSIST</span>
           </div>
-          <CardTitle className="font-heading text-2xl">Assist Portal</CardTitle>
-          <CardDescription>Портал технической поддержки</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="login">
-            <TabsList className="grid w-full grid-cols-2">
+          <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+            <Sparkles className="h-4 w-4" /> Техническая поддержка ACROTIX
+          </p>
+          <h1 className="max-w-xl font-heading text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">
+            Поддержка, которая <span className="text-primary">рядом</span>
+          </h1>
+          <p className="mt-5 max-w-lg text-lg leading-relaxed text-muted-foreground">
+            Единое рабочее пространство для заявок, оборудования, агентов и контроля инфраструктуры.
+          </p>
+
+          <div className="relative mt-12 flex h-52 max-w-md items-center overflow-hidden rounded-3xl border border-primary/20 bg-card/55 p-7 backdrop-blur-sm">
+            <div className="auth-orbit absolute -right-16 -top-16 h-56 w-56 rounded-full" />
+            <div className="relative flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+                <Headphones className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-heading text-lg font-semibold">Акро уже на связи</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  Здесь появится фирменный персонаж Акро — только отдельное оригинальное изображение, без Midori.
+                </p>
+              </div>
+            </div>
+            <ShieldCheck className="absolute bottom-5 right-6 h-16 w-16 text-primary/20" aria-hidden="true" />
+          </div>
+        </section>
+
+        <div className="w-full max-w-md justify-self-center">
+          <div className="mb-6 flex items-center justify-center gap-3 lg:hidden">
+            <BrandLogo className="h-12 w-auto" />
+            <div className="h-8 w-px bg-border" />
+            <span className="text-sm font-semibold tracking-[0.22em] text-primary">ASSIST</span>
+          </div>
+          <Card className="auth-card border-border/80 bg-card/90 backdrop-blur-xl">
+            <CardHeader className="pb-4 text-center">
+              <CardTitle className="font-heading text-2xl">Добро пожаловать</CardTitle>
+              <CardDescription>Войдите в Assist Portal</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Tabs defaultValue="login">
+                <TabsList className="grid w-full grid-cols-2 bg-secondary/80">
               <TabsTrigger value="login">Вход</TabsTrigger>
               <TabsTrigger value="signup">Регистрация</TabsTrigger>
             </TabsList>
@@ -137,33 +178,36 @@ export default function Auth() {
                 </Button>
               </form>
             </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+              </Tabs>
+            </CardContent>
+          </Card>
 
-      {bootstrapAvailable && (
-        <Card className="w-full max-w-md mt-4 border-dashed border-primary/50">
-          <CardContent className="p-4 space-y-2 text-sm">
-            <div className="flex items-center gap-2 font-medium">
-              <ShieldPlus className="h-4 w-4 text-primary" />
-              Первичная инициализация портала
-            </div>
-            <p className="text-xs text-muted-foreground">
-              В системе ещё нет пользователей. Создайте суперадминистратора одним кликом —
-              логин <code>admin@assist.local</code>, пароль <code>derby3713</code>.
-              Сразу после входа смените пароль в профиле.
-            </p>
-            <Button size="sm" className="w-full" onClick={handleBootstrap} disabled={bootstrapBusy}>
-              {bootstrapBusy ? "Создаём…" : "Создать суперадмина"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+          {bootstrapAvailable && (
+            <Card className="mt-4 border-dashed border-primary/50 bg-card/85">
+              <CardContent className="space-y-2 p-4 text-sm">
+                <div className="flex items-center gap-2 font-medium">
+                  <ShieldPlus className="h-4 w-4 text-primary" />
+                  Первичная инициализация портала
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  В системе ещё нет пользователей. Создайте суперадминистратора одним кликом —
+                  логин <code>admin@assist.local</code>, пароль <code>derby3713</code>.
+                  Сразу после входа смените пароль в профиле.
+                </p>
+                <Button size="sm" className="w-full" onClick={handleBootstrap} disabled={bootstrapBusy}>
+                  {bootstrapBusy ? "Создаём…" : "Создать суперадмина"}
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
-      <div className="mt-8 text-center text-xs text-muted-foreground inline-flex items-center gap-1 justify-center">
-        <Clock className="h-3 w-3" />
-        Пн–Пт: 9:00 – 18:00
+          <div className="mt-6 text-center text-xs text-muted-foreground inline-flex w-full items-center gap-1 justify-center">
+            <Clock className="h-3 w-3" />
+            Пн–Пт: 9:00 – 18:00
+          </div>
+        </div>
       </div>
+
     </div>
   );
 }

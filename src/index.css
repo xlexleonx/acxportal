@@ -8,25 +8,25 @@
 
 @layer base {
   :root {
-    --background: 0 0% 97%;
-    --foreground: 0 0% 8%;
+    --background: 204 38% 97%;
+    --foreground: 211 45% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 8%;
+    --card-foreground: 211 45% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 8%;
+    --popover-foreground: 211 45% 12%;
 
-    --primary: 0 85% 45%;
+    --primary: 187 82% 32%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 93%;
-    --secondary-foreground: 0 0% 15%;
+    --secondary: 198 28% 92%;
+    --secondary-foreground: 211 42% 18%;
 
-    --muted: 0 0% 95%;
-    --muted-foreground: 0 0% 40%;
+    --muted: 201 24% 94%;
+    --muted-foreground: 210 17% 39%;
 
-    --accent: 0 85% 45%;
+    --accent: 184 77% 35%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
@@ -38,65 +38,65 @@
     --warning: 38 92% 50%;
     --warning-foreground: 38 90% 15%;
 
-    --border: 0 0% 88%;
-    --input: 0 0% 88%;
-    --ring: 0 85% 45%;
+    --border: 204 22% 84%;
+    --input: 204 22% 84%;
+    --ring: 187 82% 32%;
 
     --radius: 0.625rem;
 
-    --sidebar-background: 0 0% 5%;
-    --sidebar-foreground: 0 0% 85%;
-    --sidebar-primary: 0 85% 50%;
+    --sidebar-background: 211 54% 9%;
+    --sidebar-foreground: 197 24% 86%;
+    --sidebar-primary: 184 79% 43%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 12%;
-    --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 0 85% 50%;
+    --sidebar-accent: 209 42% 15%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 202 35% 17%;
+    --sidebar-ring: 184 79% 43%;
   }
 
   .dark {
-    --background: 0 0% 9%;
-    --foreground: 0 0% 93%;
+    --background: 211 56% 7%;
+    --foreground: 195 30% 94%;
 
-    --card: 0 0% 12%;
-    --card-foreground: 0 0% 93%;
+    --card: 211 43% 11%;
+    --card-foreground: 195 30% 94%;
 
-    --popover: 0 0% 12%;
-    --popover-foreground: 0 0% 93%;
+    --popover: 211 43% 11%;
+    --popover-foreground: 195 30% 94%;
 
-    --primary: 0 85% 50%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 184 79% 43%;
+    --primary-foreground: 211 56% 8%;
 
-    --secondary: 0 0% 16%;
-    --secondary-foreground: 0 0% 85%;
+    --secondary: 210 35% 17%;
+    --secondary-foreground: 196 25% 87%;
 
-    --muted: 0 0% 15%;
-    --muted-foreground: 0 0% 55%;
+    --muted: 210 37% 14%;
+    --muted-foreground: 202 18% 62%;
 
-    --accent: 0 85% 50%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 185 78% 41%;
+    --accent-foreground: 211 56% 8%;
 
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 70% 45%;
+    --success: 154 68% 43%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 0 85% 50%;
+    --border: 204 32% 21%;
+    --input: 204 32% 21%;
+    --ring: 184 79% 43%;
 
-    --sidebar-background: 0 0% 7%;
-    --sidebar-foreground: 0 0% 80%;
-    --sidebar-primary: 0 85% 50%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 14%;
-    --sidebar-accent-foreground: 0 0% 90%;
-    --sidebar-border: 0 0% 16%;
-    --sidebar-ring: 0 85% 50%;
+    --sidebar-background: 211 60% 6%;
+    --sidebar-foreground: 197 22% 84%;
+    --sidebar-primary: 184 79% 43%;
+    --sidebar-primary-foreground: 211 56% 8%;
+    --sidebar-accent: 209 39% 13%;
+    --sidebar-accent-foreground: 0 0% 96%;
+    --sidebar-border: 203 37% 16%;
+    --sidebar-ring: 184 79% 43%;
   }
 }
 
@@ -108,11 +108,44 @@
   body {
     @apply bg-background text-foreground font-sans;
     font-family: 'DM Sans', system-ui, sans-serif;
+    min-width: 320px;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Space Grotesk', system-ui, sans-serif;
   }
+}
+
+/* ─── ACROTIX visual language ─── */
+.auth-shell {
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 9% 20%, hsl(184 83% 40% / 0.16), transparent 26rem),
+    radial-gradient(circle at 88% 78%, hsl(354 84% 51% / 0.10), transparent 30rem),
+    linear-gradient(135deg, hsl(206 39% 96%) 0%, hsl(195 43% 93%) 100%);
+}
+
+.dark .auth-shell {
+  background:
+    radial-gradient(circle at 13% 18%, hsl(184 80% 39% / 0.25), transparent 25rem),
+    radial-gradient(circle at 83% 80%, hsl(354 83% 50% / 0.13), transparent 29rem),
+    linear-gradient(135deg, hsl(211 58% 7%) 0%, hsl(205 53% 10%) 50%, hsl(211 57% 7%) 100%);
+}
+
+.auth-grid {
+  background-image: radial-gradient(hsl(var(--primary) / 0.22) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(to bottom, transparent, black 16%, black 84%, transparent);
+}
+
+.auth-orbit {
+  background:
+    radial-gradient(circle at 50% 50%, hsl(var(--primary) / 0.26), transparent 38%),
+    conic-gradient(from 30deg, transparent, hsl(var(--primary) / 0.26), transparent 39%, hsl(var(--destructive) / 0.22), transparent 74%);
+}
+
+.auth-card {
+  box-shadow: 0 24px 70px -32px hsl(208 68% 8% / 0.45);
 }
 
 /* ─── react-grid-layout overrides ─── */
