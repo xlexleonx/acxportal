@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import ThemeToggle from "@/components/ThemeToggle";
-import BrandLogo from "@/components/BrandLogo";
-import { Clock, Headphones, ShieldCheck, ShieldPlus, Sparkles } from "lucide-react";
+import acroSupport from "@/assets/acro-support.png";
+import { Clock, ShieldPlus, Sparkles } from "lucide-react";
 
 export default function Auth() {
   const [email, setEmail] = useState("");
@@ -95,43 +95,33 @@ export default function Auth() {
 
       <div className="relative z-10 mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-10 py-10 lg:grid-cols-[1.05fr_.95fr]">
         <section className="hidden lg:block pr-10">
-          <div className="mb-10 flex items-center gap-3">
-            <BrandLogo className="h-12 w-auto" />
-            <div className="h-8 w-px bg-border" />
-            <span className="text-sm font-semibold tracking-[0.22em] text-primary">ASSIST</span>
-          </div>
           <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
             <Sparkles className="h-4 w-4" /> Техническая поддержка ACROTIX
           </p>
           <h1 className="max-w-xl font-heading text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">
             Поддержка, которая <span className="text-primary">рядом</span>
           </h1>
-          <p className="mt-5 max-w-lg text-lg leading-relaxed text-muted-foreground">
-            Единое рабочее пространство для заявок, оборудования, агентов и контроля инфраструктуры.
-          </p>
 
-          <div className="relative mt-12 flex h-52 max-w-md items-center overflow-hidden rounded-3xl border border-primary/20 bg-card/55 p-7 backdrop-blur-sm">
-            <div className="auth-orbit absolute -right-16 -top-16 h-56 w-56 rounded-full" />
-            <div className="relative flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-                <Headphones className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="font-heading text-lg font-semibold">Акро уже на связи</p>
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  Здесь появится фирменный персонаж Акро — только отдельное оригинальное изображение, без Midori.
-                </p>
-              </div>
+          <div className="relative mt-10 h-[23rem] max-w-md overflow-hidden rounded-3xl border border-primary/25 bg-[#07346c] shadow-2xl shadow-primary/15">
+            <img
+              src={acroSupport}
+              alt="Акро, помощник технической поддержки"
+              className="h-full w-full object-cover object-center"
+            />
+            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#041d42]/95 via-[#041d42]/35 to-transparent px-6 pb-6 pt-16">
+              <p className="font-heading text-xl font-semibold text-white">Акро уже на связи</p>
+              <p className="mt-1 text-sm text-cyan-50/85">Поможем с вопросом по порталу и инфраструктуре.</p>
             </div>
-            <ShieldCheck className="absolute bottom-5 right-6 h-16 w-16 text-primary/20" aria-hidden="true" />
           </div>
         </section>
 
         <div className="w-full max-w-md justify-self-center">
-          <div className="mb-6 flex items-center justify-center gap-3 lg:hidden">
-            <BrandLogo className="h-12 w-auto" />
-            <div className="h-8 w-px bg-border" />
-            <span className="text-sm font-semibold tracking-[0.22em] text-primary">ASSIST</span>
+          <div className="relative mb-6 h-32 overflow-hidden rounded-2xl border border-primary/25 bg-[#07346c] lg:hidden">
+            <img
+              src={acroSupport}
+              alt="Акро, помощник технической поддержки"
+              className="h-full w-full object-cover object-[center_38%]"
+            />
           </div>
           <Card className="auth-card border-border/80 bg-card/90 backdrop-blur-xl">
             <CardHeader className="pb-4 text-center">

@@ -138,12 +138,6 @@
   mask-image: linear-gradient(to bottom, transparent, black 16%, black 84%, transparent);
 }
 
-.auth-orbit {
-  background:
-    radial-gradient(circle at 50% 50%, hsl(var(--primary) / 0.26), transparent 38%),
-    conic-gradient(from 30deg, transparent, hsl(var(--primary) / 0.26), transparent 39%, hsl(var(--destructive) / 0.22), transparent 74%);
-}
-
 .auth-card {
   box-shadow: 0 24px 70px -32px hsl(208 68% 8% / 0.45);
 }
