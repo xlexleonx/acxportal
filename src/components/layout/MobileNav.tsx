@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Building2, Server, CalendarCheck, Ticket, Users, LogOut, ClipboardList, FileArchive, ScrollText, HelpCircle,
 } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
-import BrandLogo from "@/components/BrandLogo";
+import acroSupport from "@/assets/acro-support.png";
 import { GlobalSearch } from "@/components/GlobalSearch";
 
 const navItems = [
@@ -34,7 +34,11 @@ export default function MobileNav() {
   return (
     <header className="lg:hidden flex items-center justify-between px-4 py-3 border-b bg-card">
       <div className="flex items-center gap-2">
-        <BrandLogo className="h-7 w-auto" />
+        <img
+          src={acroSupport}
+          alt="Акро"
+          className="h-8 w-8 rounded-lg border border-primary/30 object-cover object-[50%_32%]"
+        />
         <span className="font-heading font-semibold text-sm">Assist Portal</span>
       </div>
       <div className="flex items-center gap-1">

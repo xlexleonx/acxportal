@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import ThemeToggle from "@/components/ThemeToggle";
-import BrandLogo from "@/components/BrandLogo";
+import acroSupport from "@/assets/acro-support.png";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import KillSwitch, { useLogoKillTrigger } from "@/components/KillSwitch";
 import { ShiftHandoverDialog } from "@/components/ShiftHandoverDialog";
@@ -247,12 +247,16 @@ export default function AppSidebar() {
           className="focus:outline-none cursor-pointer"
           tabIndex={-1}
         >
-          <BrandLogo className="h-10 w-10 rounded-lg" />
+          <img
+            src={acroSupport}
+            alt="Акро"
+            className="h-10 w-10 rounded-xl border border-primary/30 object-cover object-[50%_32%] shadow-lg shadow-primary/15"
+          />
         </button>
         {!collapsed && (
           <div className="min-w-0">
-            <h1 className="font-heading text-sm font-semibold text-sidebar-primary-foreground leading-tight">Assist Portal</h1>
-            <p className="text-[11px] text-sidebar-foreground/50 truncate">AP</p>
+            <h1 className="font-heading text-sm font-semibold text-sidebar-foreground leading-tight">Assist Portal</h1>
+            <p className="text-[11px] text-sidebar-foreground/60 truncate">Техническая поддержка</p>
           </div>
         )}
       </div>
