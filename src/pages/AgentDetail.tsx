@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { moduleLabels } from "@/lib/license-labels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +84,27 @@ export default function AgentDetail() {
       if (error) throw error;
       return (data?.problems ?? []).filter((p: any) => p.agent_id === agent.agent_id);
     },
+  });
+
+  // Изменения состава железа (замена/добавление/извлечение компонентов) — только неразобранные.
+  const { data: hwChanges = [] } = useQuery({
+    queryKey: ["agent-hw-changes", agent?.agent_id],
+    enabled: !!agent?.agent_id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("agent_hw_changes")
+        .select("*").eq("agent_id", agent.agent_id).eq("status", "new")
+        .order("detected_at", { ascending: false });
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+  const reviewHwMut = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase.from("agent_hw_changes")
+        .update({ status, reviewed_at: new Date().toISOString() }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["agent-hw-changes", agent?.agent_id] }),
   });
   const { data: orgOptions = [] } = useQuery({
     queryKey: ["orgs-min-detail"],
@@ -289,8 +311,35 @@ export default function AgentDetail() {
           <CardContent><div className="text-sm">{agent.ram_total_mb ? `${Math.round(agent.ram_total_mb / 1024)} ГБ` : "—"}</div></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Последняя активность</CardTitle></CardHeader>
           <CardContent><div className="text-sm">{agent.last_seen_at ? formatDistanceToNow(new Date(agent.last_seen_at), { addSuffix: true, locale: ru }) : "—"}</div></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Лицензия</CardTitle></CardHeader>
+          <CardContent>
+            {agent.license_valid
+              ? <><div className="text-sm text-green-600 font-medium">{agent.license_note || "Активна"}</div><div className="text-xs text-muted-foreground">{Array.isArray(agent.license_modules) && agent.license_modules.length > 0 ? moduleLabels(agent.license_modules) : "базовый доступ"}</div>{agent.license_expires && <div className="text-xs text-muted-foreground">до {agent.license_expires}</div>}</>
+              : agent.license_expired
+                ? <div className="text-sm text-amber-600 font-medium">Истекла</div>
+                : <div className="text-sm text-muted-foreground">Нет лицензии</div>}
+          </CardContent></Card>
       </div>
 
+      {hwChanges.length > 0 && (
+        <Card className="border-amber-500/40">
+          <CardHeader><CardTitle className="text-base flex items-center gap-2">⚠️ Изменения оборудования <span className="text-xs font-normal text-muted-foreground">требуют проверки</span></CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {hwChanges.map((c: any) => (
+              <div key={c.id} className="rounded-md border p-3 space-y-2">
+                <div className="text-sm">{c.detail}</div>
+                <div className="text-xs text-muted-foreground">Обнаружено: {new Date(c.detected_at).toLocaleString("ru-RU")}</div>
+                <div className="flex gap-2 pt-1">
+                  <Button size="sm" variant="outline" className="text-green-600 border-green-600/40"
+                    onClick={() => reviewHwMut.mutate({ id: c.id, status: "approved" })}>Подтвердить (плановая замена)</Button>
+                  <Button size="sm" variant="outline" className="text-red-600 border-red-600/40"
+                    onClick={() => reviewHwMut.mutate({ id: c.id, status: "flagged" })}>Тревога (без согласования)</Button>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
       {agent.os_type === "bmc" && latest?.bmc_hardware && (
         <Card>
           <CardHeader><CardTitle className="text-base">Сервер (BMC)</CardTitle></CardHeader>

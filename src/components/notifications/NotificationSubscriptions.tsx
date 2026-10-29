@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +90,7 @@ export function NotificationSubscriptions() {
   // Group events by module, filter by audience (show all to admins)
   const isAdmin = roles.includes("admin");
   const visibleEvents = NOTIFICATION_EVENTS.filter((e) =>
-    isAdmin ? true : e.audience.some((a) => roles.includes(a as any))
+    isAdmin || e.key === "agent.registered" || e.audience.some((a) => roles.includes(a as any))
   );
   const grouped = useMemo(() => {
     const g: Record<string, typeof NOTIFICATION_EVENTS> = {};
@@ -114,10 +115,16 @@ export function NotificationSubscriptions() {
         </CardContent></Card>
       )}
 
-      {Object.entries(grouped).map(([mod, events]) => (
-        <Card key={mod}>
-          <CardHeader className="pb-3"><CardTitle className="text-base">{EVENT_MODULES[mod] ?? mod}</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
+      <Tabs defaultValue={Object.keys(grouped)[0]} className="w-full">
+        <TabsList className="flex flex-wrap h-auto gap-1 justify-start">
+          {Object.keys(grouped).map((mod) => (
+            <TabsTrigger key={mod} value={mod} className="text-xs">
+              {EVENT_MODULES[mod] ?? mod} <span className="ml-1 opacity-60">{grouped[mod].length}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {Object.entries(grouped).map(([mod, events]) => (
+          <TabsContent key={mod} value={mod} className="space-y-3 mt-4">
             {events.map((ev) => {
               const sub = subMap.get(ev.key);
               const enabled = sub?.enabled ?? false;
@@ -136,7 +143,8 @@ export function NotificationSubscriptions() {
                   </div>
 
                   {enabled && (
-                    <div className="grid gap-3 md:grid-cols-2 pt-2 border-t">
+                    <div className={"grid gap-3 pt-2 border-t " + ((ev.module === "tickets" || ev.module === "monitoring") ? "md:grid-cols-2" : "grid-cols-1")}>
+                      {(ev.module === "tickets" || ev.module === "monitoring") && (
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">Минимальный приоритет</p>
                         <Select value={sub?.min_priority ?? "info"} onValueChange={(v) => update(ev.key, { min_priority: v === "info" ? null : v })}>
@@ -146,6 +154,7 @@ export function NotificationSubscriptions() {
                           </SelectContent>
                         </Select>
                       </div>
+                      )}
                       <div className="space-y-1">
                         <p className="text-xs text-muted-foreground">Каналы доставки</p>
                         <div className="flex flex-wrap gap-2">
@@ -183,9 +192,9 @@ export function NotificationSubscriptions() {
                 </div>
               );
             })}
-          </CardContent>
-        </Card>
-      ))}
+          </TabsContent>
+        ))}
+      </Tabs>
     </div>
   );
 }

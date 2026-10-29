@@ -13,6 +13,7 @@ import {
   Star, Activity, AlertTriangle, ShieldCheck, LineChart as LineChartIcon, Zap, type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { moduleLabels } from "@/lib/license-labels";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -1123,6 +1124,74 @@ const SavedGraphsWidget: WidgetMeta["Component"] = () => {
 };
 
 /* ============ Registry ============ */
+function LicensesWidget({ config, onConfigChange }: any = {}) {
+  const { data: agents = [] } = useQuery({
+    queryKey: ["licenses-widget"],
+    queryFn: async () => (await supabase.from("agent_registrations").select("agent_id, display_name, hostname, license_valid, license_expired, license_note, license_modules, license_expires").eq("is_active", true)).data ?? [],
+    refetchInterval: 60000,
+  });
+  const list = agents as any[];
+  const byPkg: Record<string, number> = {};
+  let noLic = 0;
+  for (const a of list) {
+    if (a.license_valid && a.license_note) byPkg[a.license_note] = (byPkg[a.license_note] || 0) + 1;
+    else if (a.license_valid) byPkg["Base"] = (byPkg["Base"] || 0) + 1;
+    else noLic++;
+  }
+  const today = new Date();
+  const soon = list.filter((a) => {
+    if (!a.license_expires) return false;
+    const d = Math.ceil((new Date(a.license_expires).getTime() - today.getTime()) / 86400000);
+    return d <= 30;
+  }).sort((a, b) => new Date(a.license_expires).getTime() - new Date(b.license_expires).getTime());
+  const pkgColor = (p: string) => p === "Pro" ? "text-green-600" : p === "Security" ? "text-cyan-600" : "text-muted-foreground";
+  return (
+    <div className="h-full flex flex-col">
+      <div className="dashboard-drag-handle flex items-center gap-2 px-3 py-2 border-b shrink-0 cursor-move">
+        <ShieldCheck className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold">Лицензии парка</span>
+      </div>
+      <div className="p-3 flex-1 flex flex-col min-h-0">
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {Object.entries(byPkg).map(([pkg, n]) => (
+            <div key={pkg} className="flex-1 min-w-[70px] rounded-lg border p-2 text-center">
+              <div className={cn("text-2xl font-bold", pkgColor(pkg))}>{n}</div>
+              <div className="text-[11px] text-muted-foreground">{pkg}</div>
+            </div>
+          ))}
+          {noLic > 0 && (
+            <div className="flex-1 min-w-[70px] rounded-lg border p-2 text-center">
+              <div className="text-2xl font-bold text-muted-foreground">{noLic}</div>
+              <div className="text-[11px] text-muted-foreground">без лицензии</div>
+            </div>
+          )}
+        </div>
+        <div className="text-xs font-medium text-muted-foreground mb-1">Истекают (30 дней)</div>
+        <div className="flex-1 overflow-y-auto space-y-1.5">
+          {soon.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-4">Нет истекающих</div>
+          ) : soon.slice(0, 10).map((a, i) => {
+            const d = Math.ceil((new Date(a.license_expires).getTime() - today.getTime()) / 86400000);
+            return (
+              <Link to={`/agents`} key={i} className="block rounded-md border p-2 hover:bg-muted/40 transition-colors">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium truncate">{a.display_name || a.hostname || a.agent_id}</div>
+                    <div className="text-[11px] text-muted-foreground truncate">{a.license_note || "—"} · {moduleLabels(a.license_modules)}</div>
+                  </div>
+                  <span className={cn("text-xs font-medium shrink-0", d <= 0 ? "text-destructive" : d <= 7 ? "text-orange-500" : "text-muted-foreground")}>
+                    {d <= 0 ? "истекла" : `${d} дн.`}
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
   "fleet-health": {
     type: "fleet-health", title: "Здоровье парка (прогноз)",
@@ -1143,6 +1212,11 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     description: "Сводка проблем от агентов: критичные и предупреждения, топ-список.",
     category: "Мониторинг", icon: AlertTriangle, defaultW: 4, defaultH: 6, minW: 3, minH: 4,
     Component: AgentProblemsWidget,
+  },
+  licenses: {
+    type: "licenses", title: "Лицензии парка", description: "Разбивка парка по пакетам лицензий и истекающие лицензии.",
+    icon: ShieldCheck, defaultW: 4, defaultH: 4, minW: 3, minH: 3,
+    Component: LicensesWidget,
   },
   "summary": {
     type: "summary", title: "Сводка", description: "Ключевые показатели: ЦОД, оборудование, заявки, протоколы.",

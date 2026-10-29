@@ -14,6 +14,16 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [react(), mcpPlugin(), mode === "development" && componentTagger()].filter(Boolean),
+  build: {
+    rollupOptions: {
+      output: {
+        entryFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
+        chunkFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
+        assetFileNames: `assets/[name]-[hash]-${Date.now()}.[ext]`,
+      },
+    },
+  },
+
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,10 +21,45 @@ export default function AgentReleases() {
     queryKey: ["agent-releases"],
     queryFn: async () => {
       const { data, error } = await supabase.from("agent_releases").select("*").order("created_at", { ascending: false });
+
+
+
       if (error) throw error;
       return data as any[];
     },
   });
+  // Следующая версия: max по semver +1 patch (Макс перепишет если minor/major).
+  function computeNextVersion(list: any[]): string {
+    let best = [0, 0, 0];
+    let found = false;
+    for (const r of list) {
+      const m = String(r.version || "").trim().replace(/^v/, "").split(".");
+      if (m.length !== 3) continue;
+      const nums = m.map((x: string) => parseInt(x, 10));
+      if (nums.some((n: number) => isNaN(n))) continue;
+      found = true;
+      if (nums[0] > best[0] || (nums[0] === best[0] && nums[1] > best[1]) ||
+          (nums[0] === best[0] && nums[1] === best[1] && nums[2] > best[2])) {
+        best = nums;
+      }
+    }
+    if (!found) return "";
+    return best[0] + "." + best[1] + "." + (best[2] + 1);
+  }
+  useEffect(() => {
+    if (!version && releases.length > 0) {
+      const nv = computeNextVersion(releases);
+      if (nv) {
+        setVersion(nv);
+        // подтянуть changelog для этой версии из release_notes (прислан build.ps1 при деплое)
+        supabase.from("release_notes").select("notes").eq("version", nv).maybeSingle().then(({ data }) => {
+          if (data && data.notes) setNotes((cur) => cur || data.notes);
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [releases]);
+
 
   const [version, setVersion] = useState("");
   const [url, setUrl] = useState("");
@@ -33,6 +68,7 @@ export default function AgentReleases() {
   const [rollout, setRollout] = useState(100);
   const [uploading, setUploading] = useState(false);
   const [uploadName, setUploadName] = useState("");
+  const [makeCurrentOnCreate, setMakeCurrentOnCreate] = useState(true);
 
   // Загрузка бинаря: браузер сам считает SHA-256 и грузит файл в бакет releases,
   // затем подставляет публичный URL и сумму в форму — оператору не нужны scp/sha256sum.
@@ -66,6 +102,10 @@ export default function AgentReleases() {
         notes: notes.trim() || null, rollout_percent: rollout, is_current: false,
       });
       if (error) throw error;
+      if (makeCurrentOnCreate) {
+        await supabase.from("agent_releases").update({ is_current: false }).eq("is_current", true);
+        await supabase.from("agent_releases").update({ is_current: true }).eq("version", version.trim());
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["agent-releases"] });
@@ -150,6 +190,7 @@ export default function AgentReleases() {
             <input type="range" min={1} max={100} value={rollout} onChange={(e) => setRollout(Number(e.target.value))} className="w-full block cursor-pointer accent-primary" />
             <div className="text-xs text-muted-foreground mt-1">{rollout === 100 ? "Обновление получат все агенты" : `Обновление получат ~${rollout}% агентов (поэтапный выкат)`}</div>
           </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer mb-3"><input id="make-current" type="checkbox" checked={makeCurrentOnCreate} onChange={(e) => setMakeCurrentOnCreate(e.target.checked)} className="accent-primary" />Сразу сделать актуальной (агенты получат обновление)</label>
           <Button onClick={() => create.mutate()} disabled={!version.trim() || !url || !sha256 || create.isPending}>Добавить релиз</Button>
         </CardContent>
       </Card>

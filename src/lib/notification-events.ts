@@ -8,7 +8,8 @@ export type NotificationEventDef = {
   audience: ("admin" | "engineer" | "customer")[]; // who typically cares
 };
 
-export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
+export const NOTIFICATION_EVENTS: NotificationEventDef[
+] = [
   // Tickets
   { key: "ticket.created", label: "Новая заявка", description: "Создана новая заявка в системе", module: "tickets", audience: ["admin", "engineer"] },
   { key: "ticket.assigned", label: "Заявка назначена на меня", description: "Заявка назначена на текущего пользователя", module: "tickets", audience: ["engineer"] },
@@ -48,6 +49,9 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
 
   // Chat
   { key: "chat.message_new", label: "Новое сообщение в чате", description: "Кто-то написал в треде, где я участник", module: "chat", audience: ["admin", "engineer", "customer"] },
+  { key: "agent.registered", label: "Подключение нового AP агента", description: "На портале зарегистрировался новый агент мониторинга", module: "monitoring", audience: ["admin", "engineer"] },
+  { key: "agent.usb_connected", label: "Подключение съёмного носителя (USB)", description: "К агенту подключена флешка, внешний диск или телефон/MTP", module: "monitoring", audience: ["admin", "engineer"] },
+  { key: "agent.hw_replaced", label: "Замена компонента оборудования", description: "Изменился состав железа: диск, память, плата и т.п.", module: "monitoring", audience: ["admin", "engineer"] },
 ];
 
 export const EVENT_MODULES: Record<string, string> = {
