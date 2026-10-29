@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,12 @@ import { Cpu, HardDrive, RefreshCw, Search, Ticket as TicketIcon, MonitorSmartph
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Trash2 } from "lucide-react";
 
 // Актуальная версия агента берётся из таблицы agent_releases (is_current).
 function useCurrentAgentVersion(): string | null {
@@ -67,6 +74,7 @@ export { AgentVersionBadge };
 type AgentRow = {
   id: string;
   agent_id: string;
+  display_name: string | null;
   hostname: string | null;
   os_type: string | null;
   os_version: string | null;
@@ -94,6 +102,11 @@ function firstIp(ips: any): string {
 export default function Agents() {
   const [search, setSearch] = useState("");
   const [orgFilter, setOrgFilter] = useState<string>("all");
+  const [agentToDelete, setAgentToDelete] = useState<AgentRow | null>(null);
+  const { hasRole } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const isAdmin = hasRole("admin");
 
   const { data: agents = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ["agents-list"],
@@ -147,6 +160,25 @@ export default function Agents() {
   }, [agents, search, orgFilter]);
 
   const onlineCount = agents.filter((a) => isOnline(a.last_seen_at)).length;
+
+  const deleteMutation = useMutation({
+    mutationFn: async (agent: AgentRow) => {
+      const { error } = await supabase
+        .from("agent_registrations")
+        .delete()
+        .eq("id", agent.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agents-list"] });
+      queryClient.invalidateQueries({ queryKey: ["agents-latest-metrics"] });
+      setAgentToDelete(null);
+      toast({ title: "Агент удалён", description: "Запись и связанные данные удалены." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Не удалось удалить агента", description: error.message, variant: "destructive" });
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -279,15 +311,29 @@ export default function Agents() {
                         : "никогда"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                      >
-                        <Link to={`/tickets?new=1&agent=${encodeURIComponent(a.agent_id)}`}>
-                          <TicketIcon className="h-4 w-4 mr-1" /> Тикет
-                        </Link>
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                        >
+                          <Link to={`/tickets?new=1&agent=${encodeURIComponent(a.agent_id)}`}>
+                            <TicketIcon className="h-4 w-4 mr-1" /> Тикет
+                          </Link>
+                        </Button>
+                        {isAdmin && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setAgentToDelete(a)}
+                            aria-label={`Удалить агента ${a.display_name || a.hostname || a.agent_id}`}
+                            title="Удалить агента"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -296,6 +342,30 @@ export default function Agents() {
           </Table>
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!agentToDelete} onOpenChange={(open) => !open && setAgentToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить агента?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Будут безвозвратно удалены агент «{agentToDelete?.display_name || agentToDelete?.hostname || agentToDelete?.agent_id}» и все связанные с ним данные: метрики, события, инвентарь, процессы и команды.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                if (agentToDelete) deleteMutation.mutate(agentToDelete);
+              }}
+            >
+              {deleteMutation.isPending ? "Удаление..." : "Удалить полностью"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
