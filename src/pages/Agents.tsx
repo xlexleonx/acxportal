@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -103,10 +102,8 @@ export default function Agents() {
   const [search, setSearch] = useState("");
   const [orgFilter, setOrgFilter] = useState<string>("all");
   const [agentToDelete, setAgentToDelete] = useState<AgentRow | null>(null);
-  const { hasRole } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const isAdmin = hasRole("admin");
 
   const { data: agents = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ["agents-list"],
@@ -163,11 +160,14 @@ export default function Agents() {
 
   const deleteMutation = useMutation({
     mutationFn: async (agent: AgentRow) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("agent_registrations")
         .delete()
-        .eq("id", agent.id);
+        .eq("id", agent.id)
+        .select("id")
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("Нет прав для удаления агента.");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["agents-list"] });
@@ -321,18 +321,16 @@ export default function Agents() {
                             <TicketIcon className="h-4 w-4 mr-1" /> Тикет
                           </Link>
                         </Button>
-                        {isAdmin && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setAgentToDelete(a)}
-                            aria-label={`Удалить агента ${a.display_name || a.hostname || a.agent_id}`}
-                            title="Удалить агента"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setAgentToDelete(a)}
+                          aria-label={`Удалить агента ${a.display_name || a.hostname || a.agent_id}`}
+                          title="Удалить агента"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
