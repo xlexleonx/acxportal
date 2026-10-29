@@ -126,6 +126,9 @@ function inQuietWindow(prefs: any): boolean {
 
 const EVENT_LABELS: Record<string, string> = {
   "ticket.created": "🆕 Новая заявка",
+  "agent.registered": "🖥 Новый агент подключён",
+  "agent.usb_connected": "🔌 Подключён съёмный носитель",
+  "agent.hw_replaced": "🔧 Замена компонента оборудования",
   "ticket.assigned": "👤 Назначена заявка",
   "ticket.status_changed": "🔄 Изменение статуса",
   "ticket.resolved": "✅ Заявка решена",

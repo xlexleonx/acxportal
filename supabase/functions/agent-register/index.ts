@@ -131,6 +131,24 @@ export default async function handler(req: Request): Promise<Response> {
       .update({ used_count: keyRow.used_count + 1 })
       .eq("id", keyRow.id);
 
+    // Уведомление о новом агенте — подписчикам события agent.registered.
+    console.log(`[agent.registered] новый агент ${agentId} (${payload.hostname ?? "?"}), шлю уведомление в dispatch`);
+    try {
+      const nr = await fetch(`${SUPABASE_URL}/functions/v1/notification-dispatch`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}` },
+        body: JSON.stringify({
+          event_type: "agent.registered",
+          priority: "P3",
+          title: "🖥 Новый агент подключён",
+          body: `Зарегистрирован агент ${payload.hostname ?? agentId}.`,
+          payload: { agent_id: agentId, hostname: payload.hostname, organization_id: keyRow.organization_id ?? null },
+        }),
+      });
+      console.log(`[agent.registered] dispatch ответил: HTTP ${nr.status}`);
+      const nrText = await nr.text();
+      console.log(`[agent.registered] dispatch тело: ${nrText.slice(0,300)}`);
+    } catch (e) { console.log(`[agent.registered] ОШИБКА уведомления: ${e}`); }
     return new Response(
       JSON.stringify({ agent_id: agentId, token, registered: true }),
       { headers: { ...corsHeaders, "content-type": "application/json" } },

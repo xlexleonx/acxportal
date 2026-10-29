@@ -108,10 +108,55 @@ export default async function handler(req: Request): Promise<Response> {
         .upsert(rows, { onConflict: "agent_id,log,record_id", ignoreDuplicates: true });
       if (evErr) console.error("events upsert:", evErr.message);
     }
+    // изменения состава железа (замена/добавление/извлечение компонентов)
+    if (Array.isArray(body.hw_changes) && body.hw_changes.length > 0) {
+      const hwRows = body.hw_changes.map((c: any) => ({
+        agent_id: agent.agent_id,
+        kind: c.kind ?? "unknown",
+        action: c.action ?? "replaced",
+        component: c.component ?? null,
+        old_serial: c.old_serial ?? null,
+        new_serial: c.new_serial ?? null,
+        detail: c.detail ?? "Изменение состава оборудования",
+        status: "new",
+      }));
+      const { error: hwErr } = await supabase.from("agent_hw_changes").insert(hwRows);
+      if (hwErr) console.error("hw_changes insert:", hwErr.message);
+      // Уведомление оператору: USB/съёмные и замена компонентов — разные события.
+      const hostLabel = agent.display_name || agent.hostname || agent.agent_id;
+      for (const c of hwRows) {
+        const isUsb = String(c.kind).startsWith("usb_");
+        const evType = isUsb ? "agent.usb_connected" : "agent.hw_replaced";
+        const title = isUsb ? "🔌 Подключён съёмный носитель" : "🔧 Замена компонента";
+        try {
+          await fetch(`${SUPABASE_URL}/functions/v1/notification-dispatch`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "apikey": SERVICE_KEY, "Authorization": `Bearer ${SERVICE_KEY}` },
+            body: JSON.stringify({
+              event_type: evType,
+              priority: isUsb ? "P3" : "P2",
+              title: `${title} — ${hostLabel}`,
+              body: c.detail,
+              payload: { agent_id: agent.agent_id, hostname: hostLabel, kind: c.kind },
+            }),
+          });
+        } catch (e) { console.error("hw notify:", e); }
+      }
+    }
 
     const reg: Record<string, unknown> = { last_seen_at: now };
     if (typeof body.agent_version === "string" && body.agent_version) {
       reg.agent_version = body.agent_version;
+    }
+    if (body.license && typeof body.license === "object") {
+      const lic = body.license as Record<string, unknown>;
+      reg.license_valid = lic.valid === true;
+      reg.license_expired = lic.expired === true;
+      reg.license_org = typeof lic.org === "string" ? lic.org : null;
+      reg.license_modules = Array.isArray(lic.modules) ? lic.modules : [];
+      reg.license_expires = (typeof lic.expires_at === "string" && lic.expires_at) ? lic.expires_at : null;
+      reg.license_type = typeof lic.type === "string" ? lic.type : null;
+      reg.license_note = typeof lic.note === "string" ? lic.note : null;
     }
     await supabase.from("agent_registrations").update(reg).eq("agent_id", agent.agent_id);
 

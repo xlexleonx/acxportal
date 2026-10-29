@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { moduleLabels } from "@/lib/license-labels";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,10 +8,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Cpu, HardDrive, RefreshCw, Search, Ticket as TicketIcon, MonitorSmartphone } from "lucide-react";
+import { Cpu, HardDrive, RefreshCw, Search, Ticket as TicketIcon, MonitorSmartphone, Usb, Wrench, AlertTriangle, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 // Актуальная версия агента берётся из таблицы agent_releases (is_current).
 function useCurrentAgentVersion(): string | null {
@@ -67,6 +73,7 @@ export { AgentVersionBadge };
 type AgentRow = {
   id: string;
   agent_id: string;
+  display_name: string | null;
   hostname: string | null;
   os_type: string | null;
   os_version: string | null;
@@ -94,6 +101,9 @@ function firstIp(ips: any): string {
 export default function Agents() {
   const [search, setSearch] = useState("");
   const [orgFilter, setOrgFilter] = useState<string>("all");
+  const [agentToDelete, setAgentToDelete] = useState<AgentRow | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: agents = [], isLoading, refetch, isFetching } = useQuery({
     queryKey: ["agents-list"],
@@ -129,24 +139,92 @@ export default function Agents() {
     refetchInterval: 30000,
   });
 
+  // Неразобранные изменения оборудования (USB/замена) по агентам — для значков.
+  const { data: hwByAgent = {} } = useQuery({
+    queryKey: ["agents-hw-changes", agents.map((a) => a.agent_id).join(",")],
+    enabled: agents.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("agent_hw_changes")
+        .select("agent_id, kind").eq("status", "new");
+      if (error) throw error;
+      const map: Record<string, { usb: boolean; hw: boolean }> = {};
+      for (const r of data ?? []) {
+        const e = map[r.agent_id] ?? { usb: false, hw: false };
+        if (String(r.kind).startsWith("usb_")) e.usb = true; else e.hw = true;
+        map[r.agent_id] = e;
+      }
+      return map;
+    },
+    refetchInterval: 30000,
+  });
+  const { data: probByAgent = {} } = useQuery({
+    queryKey: ["agents-problems-severity"],
+    enabled: agents.length > 0,
+    queryFn: async () => {
+      const map: Record<string, string> = {};
+      try {
+        const { data } = await supabase.functions.invoke("agent-problems");
+        const rank = (s: string) => s === "high" ? 3 : s === "average" ? 2 : 1;
+        for (const p of (data?.problems ?? [])) {
+          const cur = map[p.agent_id];
+          if (!cur || rank(p.severity) > rank(cur)) map[p.agent_id] = p.severity;
+        }
+      } catch { /* не рушить страницу если функция недоступна */ }
+      return map;
+    },
+    retry: false,
+    refetchInterval: 30000,
+  });
   const orgList = useMemo(() => {
     const set = new Map<string, string>();
     for (const a of agents) if ((a as any).organization?.name) set.set((a as any).organization_id, (a as any).organization.name);
     return Array.from(set, ([id, name]) => ({ id, name })).sort((x, y) => x.name.localeCompare(y.name));
   }, [agents]);
+  const [sortBy, setSortBy] = useState<"activity" | "name" | "org" | "status">("activity");
+  const toggleSort = (key: "activity" | "name" | "org" | "status") => setSortBy(key);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = agents;
     if (orgFilter !== "all") list = list.filter((a) => (a as any).organization_id === orgFilter);
-    if (!q) return list;
-    return list.filter((a) =>
-      [a.hostname, a.agent_id, a.os_type, a.os_version, a.equipment?.name]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q)),
-    );
-  }, [agents, search, orgFilter]);
+    if (q) {
+      list = list.filter((a) =>
+        [a.hostname, a.agent_id, a.os_type, a.os_version, a.equipment?.name]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q)),
+      );
+    }
+    const sorted = [...list].sort((a, b) => {
+      if (sortBy === "name") return (a.display_name || a.hostname || a.agent_id).localeCompare(b.display_name || b.hostname || b.agent_id);
+      if (sortBy === "org") return (((a as any).organization?.name) || "").localeCompare(((b as any).organization?.name) || "");
+      if (sortBy === "status") return (isOnline(b.last_seen_at) ? 1 : 0) - (isOnline(a.last_seen_at) ? 1 : 0);
+      return (new Date(b.last_seen_at || 0).getTime()) - (new Date(a.last_seen_at || 0).getTime());
+    });
+    return sorted;
+  }, [agents, search, orgFilter, sortBy]);
 
   const onlineCount = agents.filter((a) => isOnline(a.last_seen_at)).length;
+
+  const deleteMutation = useMutation({
+    mutationFn: async (agent: AgentRow) => {
+      const { data, error } = await supabase
+        .from("agent_registrations")
+        .delete()
+        .eq("id", agent.id)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("Нет прав для удаления агента.");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agents-list"] });
+      queryClient.invalidateQueries({ queryKey: ["agents-latest-metrics"] });
+      setAgentToDelete(null);
+      toast({ title: "Агент удалён", description: "Запись и связанные данные удалены." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Не удалось удалить агента", description: error.message, variant: "destructive" });
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -198,21 +276,27 @@ export default function Agents() {
               {orgList.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
           </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Значки:</span>
+            <span className="inline-flex items-center gap-1"><Usb className="h-3.5 w-3.5 text-red-500" /> съёмный носитель (USB/телефон)</span>
+            <span className="inline-flex items-center gap-1"><Wrench className="h-3.5 w-3.5 text-amber-500" /> замена компонента железа</span>
+            <span className="inline-flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> проблемы (жёлтый — внимание, <AlertTriangle className="h-3.5 w-3.5 text-red-500 inline" /> красный — критично)</span>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Статус</TableHead>
-                <TableHead>Hostname</TableHead>
-                <TableHead>Организация</TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("status")}>Статус{sortBy === "status" ? " ↓" : ""}</TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("name")}>Hostname{sortBy === "name" ? " ↓" : ""}</TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("org")}>Организация{sortBy === "org" ? " ↓" : ""}</TableHead>
                 <TableHead>OS</TableHead>
                 <TableHead>IP</TableHead>
                 <TableHead>CPU</TableHead>
                 <TableHead>RAM</TableHead>
                 <TableHead>Оборудование</TableHead>
                 <TableHead>Версия</TableHead>
-                <TableHead>Последняя активность</TableHead>
+                <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("activity")}>Последняя активность{sortBy === "activity" ? " ↓" : ""}</TableHead>
                 <TableHead className="text-right">Действия</TableHead>
               </TableRow>
             </TableHeader>
@@ -236,6 +320,11 @@ export default function Agents() {
                     <TableCell className="font-medium">
                       <Link to={`/agents/${a.id}`} className="hover:underline">
                         {a.display_name || a.hostname || a.agent_id}
+                        {hwByAgent[a.agent_id]?.usb && <Usb className="inline-block ml-1.5 h-4 w-4 text-red-500 align-text-bottom" />}
+                        {hwByAgent[a.agent_id]?.hw && <Wrench className="inline-block ml-1 h-4 w-4 text-amber-500 align-text-bottom" />}
+                        {probByAgent[a.agent_id] && <AlertTriangle className={"inline-block ml-1 h-4 w-4 align-text-bottom " + (probByAgent[a.agent_id] === "high" ? "text-red-500" : "text-amber-500")} />}
+                        {(a as any).license_valid && <span className="inline-block ml-1.5 px-1.5 py-0.5 rounded text-[10px] bg-green-600/15 text-green-600 align-text-bottom" title={moduleLabels((a as any).license_modules)}>{(a as any).license_note || "лиц."}</span>}
+                        {(a as any).license_expired && <span className="inline-block ml-1.5 px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-600 align-text-bottom">истекла</span>}
                       </Link>
                       <div className="text-xs text-muted-foreground">{a.agent_id}</div>
                     </TableCell>
@@ -279,15 +368,27 @@ export default function Agents() {
                         : "никогда"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                      >
-                        <Link to={`/tickets?new=1&agent=${encodeURIComponent(a.agent_id)}`}>
-                          <TicketIcon className="h-4 w-4 mr-1" /> Тикет
-                        </Link>
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          asChild
+                        >
+                          <Link to={`/tickets?new=1&agent=${encodeURIComponent(a.agent_id)}`}>
+                            <TicketIcon className="h-4 w-4 mr-1" /> Тикет
+                          </Link>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setAgentToDelete(a)}
+                          aria-label={`Удалить агента ${a.display_name || a.hostname || a.agent_id}`}
+                          title="Удалить агента"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -296,6 +397,30 @@ export default function Agents() {
           </Table>
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!agentToDelete} onOpenChange={(open) => !open && setAgentToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить агента?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Будут безвозвратно удалены агент «{agentToDelete?.display_name || agentToDelete?.hostname || agentToDelete?.agent_id}» и все связанные с ним данные: метрики, события, инвентарь, процессы и команды.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+              onClick={(event) => {
+                event.preventDefault();
+                if (agentToDelete) deleteMutation.mutate(agentToDelete);
+              }}
+            >
+              {deleteMutation.isPending ? "Удаление..." : "Удалить полностью"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
