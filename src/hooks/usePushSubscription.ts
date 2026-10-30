@@ -142,5 +142,5 @@ export function usePushSubscription() {
     }
   }, [supported, user]);
 
-  return { supported, subscribed, busy, error, enable, disable };
+  return { supported, subscribed, busy, error, vapidConfigured: Boolean(VAPID_PUBLIC), enable, disable };
 }

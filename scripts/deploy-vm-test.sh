@@ -22,6 +22,8 @@ done
 
 ANON_KEY_VALUE="$(sed -n 's/^ANON_KEY=//p' "$ENV_FILE" | head -n 1)"
 [[ -n "$ANON_KEY_VALUE" ]] || { echo "В $ENV_FILE не задан ANON_KEY" >&2; exit 1; }
+# Разрешаем оба обычных варианта .env: VALUE и "VALUE".
+VAPID_PUBLIC_KEY_VALUE="$(sed -n -E 's/^VAPID_PUBLIC_KEY="?([^\"]*)"?$/\1/p' "$ENV_FILE" | head -n 1)"
 
 echo "Получаю ветку $BRANCH из Git..."
 git -C "$REPO_DIR" pull --ff-only origin "$BRANCH"
@@ -35,6 +37,11 @@ echo "Готовлю исходники: $BUILD_DIR"
 git -C "$REPO_DIR" archive --format=tar HEAD | tar -x -C "$BUILD_DIR"
 printf 'VITE_SUPABASE_URL=%s\nVITE_SUPABASE_PUBLISHABLE_KEY=%s\n' \
   "$PUBLIC_SUPABASE_URL" "$ANON_KEY_VALUE" > "$BUILD_DIR/.env"
+if [[ -n "$VAPID_PUBLIC_KEY_VALUE" ]]; then
+  printf 'VITE_VAPID_PUBLIC_KEY=%s\n' "$VAPID_PUBLIC_KEY_VALUE" >> "$BUILD_DIR/.env"
+else
+  echo "VAPID_PUBLIC_KEY не задан: браузерные push-уведомления будут недоступны."
+fi
 
 echo "Собираю фронтенд..."
 docker run --rm -v "$BUILD_DIR:/app" -w /app node:20-alpine \

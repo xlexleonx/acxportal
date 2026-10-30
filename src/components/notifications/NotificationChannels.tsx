@@ -32,7 +32,7 @@ const TYPE_META: Record<ChannelType, { label: string; icon: any; color: string }
 };
 
 function WebPushCard() {
-  const { supported, subscribed, busy, error, enable, disable } = usePushSubscription();
+  const { supported, subscribed, busy, error, vapidConfigured, enable, disable } = usePushSubscription();
   const { toast } = useToast();
   if (!supported) {
     return (
@@ -60,9 +60,18 @@ function WebPushCard() {
           <div className="text-xs text-muted-foreground truncate">
             {subscribed ? "Включены — приходят даже при закрытой вкладке" : "Получать уведомления в этом браузере, даже когда портал закрыт"}
           </div>
+          {!vapidConfigured && (
+            <div className="text-xs text-amber-500 mt-0.5">Push-уведомления ещё не настроены администратором портала.</div>
+          )}
           {error ? <div className="text-xs text-destructive mt-0.5">{error}</div> : null}
         </div>
-        <Button size="sm" variant={subscribed ? "outline" : "default"} disabled={busy} onClick={onToggle}>
+        <Button
+          size="sm"
+          variant={subscribed ? "outline" : "default"}
+          disabled={busy || !vapidConfigured}
+          title={!vapidConfigured ? "Требуется настройка VAPID-ключей на сервере" : undefined}
+          onClick={onToggle}
+        >
           {busy ? "…" : subscribed ? "Выключить" : "Включить в этом браузере"}
         </Button>
       </CardContent>
@@ -107,7 +116,19 @@ export function NotificationChannels() {
       const { error } = await supabase.from("notification_channels").update({ enabled }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["notif-channels"] }),
+    onMutate: async ({ id, enabled }) => {
+      await qc.cancelQueries({ queryKey: ["notif-channels", user?.id] });
+      const previous = qc.getQueryData(["notif-channels", user?.id]);
+      qc.setQueryData(["notif-channels", user?.id], (current: any[] | undefined) =>
+        current?.map((channel) => channel.id === id ? { ...channel, enabled } : channel) ?? current,
+      );
+      return { previous };
+    },
+    onError: (error: Error, _variables, context) => {
+      if (context?.previous) qc.setQueryData(["notif-channels", user?.id], context.previous);
+      toast({ title: "Не удалось изменить состояние канала", description: error.message, variant: "destructive" });
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["notif-channels", user?.id] }),
   });
 
   const bulkUpdateMut = useMutation({
