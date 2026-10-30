@@ -85,7 +85,27 @@ export default function Auth() {
 
   return (
     <div className="auth-shell min-h-screen overflow-hidden px-4 py-6 relative">
-      <GalaxyBackground />
+      <GalaxyBackground
+        className="pointer-events-none absolute inset-0 z-0"
+        hueShift={194}
+        saturation={0}
+        density={1}
+        glowIntensity={0.3}
+        starSize={1}
+        flareIntensity={1}
+        twinkleIntensity={0.3}
+        starSpeed={0.5}
+        speed={1}
+        rotationSpeed={0.1}
+        layers={4}
+        direction="forward"
+        mouseInteraction
+        mouseRepulsion
+        repulsionStrength={2}
+        clickWarp
+        intro
+        lightMode={false}
+      />
       <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(110deg,rgba(1,10,22,0.4),transparent_56%,rgba(1,9,18,0.3))]" />
 
       <div className="absolute top-4 right-4 z-10 md:top-6 md:right-6 flex items-center gap-2 rounded-full border border-border/70 bg-card/70 p-1.5 pl-3 backdrop-blur-md">
