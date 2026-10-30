@@ -31,7 +31,12 @@ export function NotificationSubscriptions() {
   const { data: subs = [] } = useQuery({
     queryKey: ["notif-subs", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("notification_subscriptions").select("*");
+      // Подписки — персональная настройка. Администратор может видеть все
+      // строки по RLS, но в этой форме должен изменять только собственные.
+      const { data } = await supabase
+        .from("notification_subscriptions")
+        .select("*")
+        .eq("user_id", user!.id);
       return data ?? [];
     },
     enabled: !!user,
@@ -54,7 +59,10 @@ export function NotificationSubscriptions() {
 
   const upsertMut = useMutation({
     mutationFn: async (sub: any) => {
-      const payload = { ...sub, user_id: user!.id };
+      // id принадлежит конкретной строке. Его нельзя переносить в upsert:
+      // при конфликте по user_id/event_type это могло столкнуться с чужим id.
+      const { id: _id, created_at: _createdAt, updated_at: _updatedAt, ...values } = sub;
+      const payload = { ...values, user_id: user!.id };
       const { error } = await supabase
         .from("notification_subscriptions")
         .upsert(payload, { onConflict: "user_id,event_type" });
