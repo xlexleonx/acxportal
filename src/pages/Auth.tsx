@@ -124,7 +124,7 @@ export default function Auth() {
           </h1>
 
           <div className="mt-8 max-w-lg">
-            <div className="mx-auto h-[21rem] max-w-[23rem]">
+            <div className="mx-auto h-[19rem] max-w-[21rem]">
               <img
                 src={acroSupport}
                 alt="Акро, помощник технической поддержки"
@@ -132,15 +132,11 @@ export default function Auth() {
                 className="pointer-events-none h-full w-full select-none object-contain object-bottom drop-shadow-[0_18px_28px_rgba(0,0,0,0.32)] [-webkit-user-drag:none]"
               />
             </div>
-            <div className="mt-2 px-4 [text-shadow:0_2px_14px_rgba(1,10,22,0.95)]">
-              <p className="font-heading text-xl font-semibold text-white">Акро уже на связи</p>
-              <p className="mt-1 text-sm text-cyan-50/85">Поможем с вопросом по порталу и инфраструктуре.</p>
-            </div>
           </div>
         </section>
 
         <div className="w-full max-w-md justify-self-center">
-          <div className="relative mb-3 h-32 lg:hidden">
+          <div className="relative mb-3 h-28 lg:hidden">
             <img
               src={acroSupport}
               alt="Акро, помощник технической поддержки"
