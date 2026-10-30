@@ -196,9 +196,56 @@
   animation-delay: -11s;
 }
 
-.auth-galaxy-stars canvas {
-  mix-blend-mode: screen;
-  filter: grayscale(1) brightness(1.35) contrast(1.12) drop-shadow(0 0 5px rgba(149, 241, 255, 0.42));
+.auth-stars,
+.auth-stars::before,
+.auth-stars::after {
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  content: '';
+}
+
+.auth-stars {
+  opacity: 0.82;
+  background-image:
+    radial-gradient(circle at 8% 17%, rgba(255,255,255,.95) 0 1px, rgba(200,243,255,.2) 2px, transparent 5px),
+    radial-gradient(circle at 24% 41%, rgba(158,239,255,.9) 0 1px, transparent 4px),
+    radial-gradient(circle at 41% 13%, rgba(255,255,255,.86) 0 .8px, transparent 3px),
+    radial-gradient(circle at 56% 58%, rgba(193,250,245,.95) 0 1.1px, rgba(139,233,223,.18) 2px, transparent 5px),
+    radial-gradient(circle at 73% 22%, rgba(255,255,255,.9) 0 1px, transparent 4px),
+    radial-gradient(circle at 88% 48%, rgba(147,237,255,.9) 0 1px, transparent 4px),
+    radial-gradient(circle at 17% 79%, rgba(255,255,255,.82) 0 .8px, transparent 3px),
+    radial-gradient(circle at 66% 84%, rgba(176,247,239,.9) 0 1px, transparent 4px),
+    radial-gradient(circle at 94% 90%, rgba(255,255,255,.8) 0 .8px, transparent 3px);
+  animation: acx-stars-drift 28s ease-in-out infinite alternate;
+}
+
+.auth-stars::before {
+  opacity: 0.62;
+  background-image:
+    radial-gradient(circle at 14% 57%, rgba(182,244,255,.75) 0 .7px, transparent 3px),
+    radial-gradient(circle at 33% 28%, rgba(255,255,255,.76) 0 .75px, transparent 3px),
+    radial-gradient(circle at 48% 74%, rgba(150,240,229,.8) 0 .85px, transparent 3px),
+    radial-gradient(circle at 62% 35%, rgba(255,255,255,.72) 0 .75px, transparent 3px),
+    radial-gradient(circle at 81% 69%, rgba(168,239,255,.78) 0 .8px, transparent 3px),
+    radial-gradient(circle at 92% 10%, rgba(255,255,255,.7) 0 .7px, transparent 3px);
+  animation: acx-stars-drift 38s ease-in-out infinite alternate-reverse;
+}
+
+.auth-stars::after {
+  opacity: 0.36;
+  background-image:
+    radial-gradient(circle at 28% 66%, rgba(255,255,255,.8) 0 .65px, transparent 2px),
+    radial-gradient(circle at 44% 46%, rgba(131,236,255,.82) 0 .7px, transparent 2px),
+    radial-gradient(circle at 71% 10%, rgba(255,255,255,.8) 0 .7px, transparent 2px),
+    radial-gradient(circle at 84% 79%, rgba(160,247,235,.78) 0 .7px, transparent 2px),
+    radial-gradient(circle at 6% 91%, rgba(255,255,255,.75) 0 .6px, transparent 2px);
+  animation: acx-stars-drift 46s linear infinite alternate;
+}
+
+@keyframes acx-stars-drift {
+  from { transform: translate3d(-0.8%, -0.6%, 0); }
+  to { transform: translate3d(1.2%, 0.9%, 0); }
 }
 
 @keyframes acx-aurora-drift {
@@ -207,7 +254,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .auth-aurora i { animation: none; }
+  .auth-aurora i,
+  .auth-stars,
+  .auth-stars::before,
+  .auth-stars::after { animation: none; }
 }
 
 .auth-card {
