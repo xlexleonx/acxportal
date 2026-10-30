@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import ThemeToggle from "@/components/ThemeToggle";
 import GradientText from "@/components/GradientText";
 import StarfieldBackground from "@/components/StarfieldBackground";
-import acroSupport from "@/assets/acro-support.png";
+import acroSupport from "@/assets/acro-support-transparent.png";
 import { Clock, ShieldPlus, Sparkles } from "lucide-react";
 
 export default function Auth() {
@@ -129,13 +129,13 @@ export default function Auth() {
             </GradientText>
           </h1>
 
-          <div className="relative mt-10 h-[23rem] max-w-md overflow-hidden rounded-3xl border border-primary/25 bg-[#07346c] shadow-2xl shadow-primary/15">
+          <div className="relative mt-8 h-[25rem] max-w-lg">
             <img
               src={acroSupport}
               alt="Акро, помощник технической поддержки"
-              className="h-full w-full object-cover object-center"
+              className="h-full w-full object-contain object-bottom drop-shadow-[0_18px_28px_rgba(0,0,0,0.32)]"
             />
-            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-[#041d42]/95 via-[#041d42]/35 to-transparent px-6 pb-6 pt-16">
+            <div className="absolute inset-x-4 bottom-4 [text-shadow:0_2px_14px_rgba(1,10,22,0.95)]">
               <p className="font-heading text-xl font-semibold text-white">Акро уже на связи</p>
               <p className="mt-1 text-sm text-cyan-50/85">Поможем с вопросом по порталу и инфраструктуре.</p>
             </div>
@@ -143,11 +143,11 @@ export default function Auth() {
         </section>
 
         <div className="w-full max-w-md justify-self-center">
-          <div className="relative mb-6 h-32 overflow-hidden rounded-2xl border border-primary/25 bg-[#07346c] lg:hidden">
+          <div className="relative mb-4 h-40 lg:hidden">
             <img
               src={acroSupport}
               alt="Акро, помощник технической поддержки"
-              className="h-full w-full object-cover object-[center_38%]"
+              className="h-full w-full object-contain object-center drop-shadow-[0_12px_20px_rgba(0,0,0,0.28)]"
             />
           </div>
           <Card className="auth-card border-border/80 bg-card/90 backdrop-blur-xl">
