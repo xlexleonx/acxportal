@@ -116,7 +116,7 @@ export default function Auth() {
               Техническая поддержка ACROTIX
             </GradientText>
           </p>
-          <h1 className="max-w-xl text-4xl font-medium leading-tight tracking-tight xl:text-5xl">
+          <h1 className="max-w-xl text-[2rem] font-medium leading-tight tracking-tight xl:text-[2.65rem]">
             <GradientText
               colors={["#FFFFFF", "#35AACD", "#00A88E", "#00C8EC", "#FFFFFF"]}
               animationSpeed={8}
@@ -171,7 +171,7 @@ export default function Auth() {
                   <Label htmlFor="login-password">Пароль</Label>
                   <Input id="login-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="acx-event-button w-full" disabled={loading}>
                   {loading ? "Вход..." : "Войти"}
                 </Button>
               </form>
@@ -190,7 +190,7 @@ export default function Auth() {
                   <Label htmlFor="signup-password">Пароль</Label>
                   <Input id="signup-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
                 </div>
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="acx-event-button w-full" disabled={loading}>
                   {loading ? "Регистрация..." : "Зарегистрироваться"}
                 </Button>
               </form>
