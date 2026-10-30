@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import ThemeToggle from "@/components/ThemeToggle";
 import GradientText from "@/components/GradientText";
 import StarfieldBackground from "@/components/StarfieldBackground";
 import acroSupport from "@/assets/acro-support-transparent.png";
@@ -95,11 +94,6 @@ export default function Auth() {
         <StarfieldBackground />
       </div>
       <div className="pointer-events-none absolute inset-0 z-[2] bg-[linear-gradient(110deg,rgba(1,10,22,0.3),transparent_56%,rgba(1,9,18,0.2))]" />
-
-      <div className="absolute top-4 right-4 z-10 md:top-6 md:right-6 flex items-center gap-2 rounded-full border border-border/70 bg-card/70 p-1.5 pl-3 backdrop-blur-md">
-        <span className="text-xs text-muted-foreground">Тема</span>
-        <ThemeToggle className="h-8 w-8 rounded-full hover:bg-primary/10 hover:text-primary" />
-      </div>
 
       <div className="relative z-10 mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-10 py-10 lg:grid-cols-[1.05fr_.95fr]">
         <section className="hidden lg:block pr-10">

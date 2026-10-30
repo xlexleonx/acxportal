@@ -202,11 +202,83 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .auth-aurora i { animation: none; }
+  .auth-aurora i,
+  .workspace-aurora i { animation: none; }
 }
 
 .auth-card {
   box-shadow: 0 24px 70px -32px hsl(208 68% 8% / 0.45);
+}
+
+.workspace-shell {
+  isolation: isolate;
+  background: #061624;
+}
+
+.workspace-aurora {
+  overflow: hidden;
+  opacity: 0.55;
+}
+
+.workspace-aurora i {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  filter: blur(48px);
+  animation: acx-aurora-drift 20s ease-in-out infinite alternate;
+}
+
+.workspace-aurora i:nth-child(1) {
+  width: 55vmax;
+  height: 55vmax;
+  left: -16%;
+  top: -22%;
+  background: radial-gradient(circle, rgba(53, 170, 205, 0.42), transparent 64%);
+}
+
+.workspace-aurora i:nth-child(2) {
+  width: 48vmax;
+  height: 48vmax;
+  right: -12%;
+  top: 18%;
+  background: radial-gradient(circle, rgba(0, 168, 142, 0.32), transparent 64%);
+  animation-duration: 25s;
+  animation-delay: -7s;
+}
+
+.workspace-aurora i:nth-child(3) {
+  width: 45vmax;
+  height: 45vmax;
+  left: 28%;
+  bottom: -28%;
+  background: radial-gradient(circle, rgba(0, 200, 236, 0.28), transparent 64%);
+  animation-duration: 29s;
+  animation-delay: -12s;
+}
+
+.workspace-shell,
+.workspace-shell * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(48, 197, 211, 0.72) rgba(5, 28, 46, 0.78);
+}
+
+.workspace-shell ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.workspace-shell ::-webkit-scrollbar-track {
+  background: rgba(5, 28, 46, 0.78);
+}
+
+.workspace-shell ::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(5, 28, 46, 0.78);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #35AACD, #00A88E);
+}
+
+.workspace-shell ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #66d9ef, #3FE0BF);
 }
 
 .acx-event-kicker {

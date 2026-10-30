@@ -7,7 +7,6 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Building2, Server, CalendarCheck, Ticket, Users, LogOut, ClipboardList, FileArchive, ScrollText, HelpCircle,
 } from "lucide-react";
-import ThemeToggle from "@/components/ThemeToggle";
 import acroSupport from "@/assets/acro-support.png";
 import { GlobalSearch } from "@/components/GlobalSearch";
 
@@ -43,7 +42,6 @@ export default function MobileNav() {
       </div>
       <div className="flex items-center gap-1">
         <GlobalSearch />
-        <ThemeToggle />
         <Button variant="ghost" size="icon" onClick={() => setOpen(!open)}>
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>

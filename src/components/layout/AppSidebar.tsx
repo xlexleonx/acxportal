@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import ThemeToggle from "@/components/ThemeToggle";
 import acroSupport from "@/assets/acro-support.png";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import KillSwitch, { useLogoKillTrigger } from "@/components/KillSwitch";
@@ -236,7 +235,7 @@ export default function AppSidebar() {
   return (
     <TooltipProvider delayDuration={150}>
     <aside className={cn(
-      "hidden lg:flex lg:h-dvh lg:min-h-0 lg:flex-col lg:overflow-hidden bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-[width] duration-200",
+      "relative z-10 hidden lg:flex lg:h-dvh lg:min-h-0 lg:flex-col lg:overflow-hidden bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-[width] duration-200",
       collapsed ? "lg:w-16" : "lg:w-64",
     )}>
       <div className={cn("shrink-0 flex items-center gap-3 py-4 border-b border-sidebar-border", collapsed ? "px-2 justify-center" : "px-5")}>
@@ -344,7 +343,6 @@ export default function AppSidebar() {
               </TooltipTrigger>
               <TooltipContent side="right">{profile?.full_name ?? user?.email ?? "Профиль"}</TooltipContent>
             </Tooltip>
-            <ThemeToggle className="text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50" />
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50" onClick={signOut}>
@@ -364,7 +362,6 @@ export default function AppSidebar() {
                   <p className="text-xs text-sidebar-foreground/50 capitalize">{roles[0] ?? "user"}</p>
                 </div>
               </NavLink>
-              <ThemeToggle className="text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50" />
             </div>
             <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 mb-1" asChild>
               <NavLink to="/profile">
