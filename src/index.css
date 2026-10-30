@@ -330,6 +330,46 @@
   animation-play-state: paused;
 }
 
+/* Второстепенные кнопки получают фирменный эффект только при наведении.
+   Красные действия намеренно не перекрашиваем: они должны оставаться
+   заметным предупреждением об удалении или другой опасной операции. */
+.acx-button-hover:not(.acx-event-button):not([data-variant="destructive"]) {
+  position: relative;
+  overflow: hidden;
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.acx-button-hover:not(.acx-event-button):not([data-variant="destructive"])::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(110deg, transparent 40%, rgba(255, 255, 255, 0.58) 50%, transparent 60%);
+  background-size: 250% 100%;
+  transition: opacity 160ms ease;
+}
+
+.acx-button-hover:not(.acx-event-button):not([data-variant="destructive"]):hover:not(:disabled) {
+  border-color: transparent;
+  background: linear-gradient(90deg, #35AACD, #00A88E, #00C8EC, #35AACD) !important;
+  background-size: 300% 100% !important;
+  color: #04121C !important;
+  box-shadow: 0 8px 22px rgba(0, 200, 236, 0.22);
+  filter: brightness(1.05);
+  animation: acx-button-flow 6s linear infinite;
+}
+
+.acx-button-hover:not(.acx-event-button):not([data-variant="destructive"]):hover:not(:disabled)::after {
+  opacity: 1;
+  animation: acx-button-shine 2.6s ease-in-out infinite;
+}
+
+.acx-button-hover:not(.acx-event-button):not([data-variant="destructive"]):active:not(:disabled) {
+  transform: scale(0.975);
+  box-shadow: 0 4px 12px rgba(0, 200, 236, 0.2);
+}
+
 @keyframes acx-button-flow {
   to { background-position: 300% 0; }
 }
@@ -341,7 +381,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .acx-event-button,
-  .acx-event-button::after { animation: none; }
+.acx-event-button::after,
+.acx-button-hover::after { animation: none; }
 }
 
 /* ─── react-grid-layout overrides ─── */
