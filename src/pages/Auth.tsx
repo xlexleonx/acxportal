@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import ThemeToggle from "@/components/ThemeToggle";
 import GradientText from "@/components/GradientText";
+import StarfieldBackground from "@/components/StarfieldBackground";
 import acroSupport from "@/assets/acro-support.png";
 import { Clock, ShieldPlus, Sparkles } from "lucide-react";
 
@@ -90,7 +91,9 @@ export default function Auth() {
         <i />
         <i />
       </div>
-      <div className="auth-stars pointer-events-none absolute inset-0 z-[1]" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-0 z-[1]">
+        <StarfieldBackground />
+      </div>
       <div className="pointer-events-none absolute inset-0 z-[2] bg-[linear-gradient(110deg,rgba(1,10,22,0.3),transparent_56%,rgba(1,9,18,0.2))]" />
 
       <div className="absolute top-4 right-4 z-10 md:top-6 md:right-6 flex items-center gap-2 rounded-full border border-border/70 bg-card/70 p-1.5 pl-3 backdrop-blur-md">
