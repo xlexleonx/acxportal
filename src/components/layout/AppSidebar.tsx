@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import acroSupport from "@/assets/acro-support.png";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import KillSwitch, { useLogoKillTrigger } from "@/components/KillSwitch";
 import { ShiftHandoverDialog } from "@/components/ShiftHandoverDialog";
@@ -230,7 +229,7 @@ export default function AppSidebar() {
     return link;
   };
 
-  const sectionLabelClass = "text-[10px] uppercase tracking-widest text-sidebar-foreground/30 px-3 mt-4 mb-1 font-medium";
+  const sectionLabelClass = "px-3 mt-4 mb-1 text-[11px] font-semibold uppercase tracking-widest text-sidebar-foreground/60";
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -247,9 +246,9 @@ export default function AppSidebar() {
           tabIndex={-1}
         >
           <img
-            src={acroSupport}
-            alt="Акро"
-            className="h-10 w-10 rounded-xl border border-primary/30 object-cover object-[50%_32%] shadow-lg shadow-primary/15"
+            src="/favicon-acro-portal.png"
+            alt="ACROTIX"
+            className="h-10 w-10 rounded-xl border border-primary/30 object-cover shadow-lg shadow-primary/15"
           />
         </button>
         {!collapsed && (

@@ -23,11 +23,13 @@ export default function AppLayout() {
       <AppSidebar />
       <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <MobileNav />
-        <main className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+        <header className="shrink-0">
           <DynamicIsland />
           <div className="hidden lg:flex items-center justify-end gap-3 px-6 mt-2">
             <ZabbixConnectionPicker />
           </div>
+        </header>
+        <main className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
           <div className="p-4 md:p-6 lg:p-8 pt-2">
             <PageTransition>
               <Outlet />

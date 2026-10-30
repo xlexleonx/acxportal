@@ -130,7 +130,7 @@ export function NotificationSubscriptions() {
               const enabled = sub?.enabled ?? false;
               const chIds: string[] = Array.isArray(sub?.channel_ids) ? sub!.channel_ids : [];
               return (
-                <div key={ev.key} className="rounded-md border p-3 space-y-2">
+                <div key={ev.key} className="rounded-md border bg-card p-3 space-y-2 shadow-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">

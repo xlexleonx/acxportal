@@ -9,7 +9,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        // Основное действие во всём портале использует тот же живой градиент,
+        // что и кнопка входа. Второстепенные и опасные действия остаются
+        // нейтральными/красными, чтобы не терять их смысл.
+        default: "acx-event-button",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",

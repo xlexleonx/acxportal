@@ -187,7 +187,7 @@ export function DynamicIsland() {
   const hasTasks = islandTasks.length > 0;
 
   return (
-    <div className="pointer-events-none sticky top-2 z-40 flex justify-center px-4 lg:px-6">
+    <div className="pointer-events-none z-40 flex min-h-[60px] items-center justify-center px-4 py-2 lg:px-6">
       <div
         className={cn(
           "pointer-events-auto flex items-stretch gap-0 rounded-full border border-border/60",
