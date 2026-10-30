@@ -3255,6 +3255,10 @@ export type Database = {
         Returns: boolean
       }
       preview_organization_cascade: { Args: { _org_id: string }; Returns: Json }
+      set_notification_channels_enabled: {
+        Args: { _channel_ids: string[]; _enabled: boolean }
+        Returns: number
+      }
     }
     Enums: {
       app_role: "admin" | "engineer" | "customer"

@@ -113,7 +113,10 @@ export function NotificationChannels() {
 
   const toggleMut = useMutation({
     mutationFn: async ({ id, enabled }: { id: string; enabled: boolean }) => {
-      const { error } = await supabase.from("notification_channels").update({ enabled }).eq("id", id);
+      const { error } = await supabase.rpc("set_notification_channels_enabled", {
+        _channel_ids: [id],
+        _enabled: enabled,
+      });
       if (error) throw error;
     },
     onMutate: async ({ id, enabled }) => {
@@ -133,7 +136,10 @@ export function NotificationChannels() {
 
   const bulkUpdateMut = useMutation({
     mutationFn: async ({ ids, enabled }: { ids: string[]; enabled: boolean }) => {
-      const { error } = await supabase.from("notification_channels").update({ enabled }).in("id", ids);
+      const { error } = await supabase.rpc("set_notification_channels_enabled", {
+        _channel_ids: ids,
+        _enabled: enabled,
+      });
       if (error) throw error;
     },
     onSuccess: (_d, v) => {
