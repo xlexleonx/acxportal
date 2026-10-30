@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import ThemeToggle from "@/components/ThemeToggle";
 import GalaxyBackground from "@/components/GalaxyBackground";
+import GradientText from "@/components/GradientText";
 import acroSupport from "@/assets/acro-support.png";
 import { Clock, ShieldPlus, Sparkles } from "lucide-react";
 
@@ -115,11 +116,30 @@ export default function Auth() {
 
       <div className="relative z-10 mx-auto grid min-h-[calc(100vh-3rem)] w-full max-w-6xl items-center gap-10 py-10 lg:grid-cols-[1.05fr_.95fr]">
         <section className="hidden lg:block pr-10">
-          <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            <Sparkles className="h-4 w-4" /> Техническая поддержка ACROTIX
+          <p className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em]">
+            <Sparkles className="h-4 w-4 text-[#35aacd]" />
+            <GradientText
+              colors={["#35AACD", "#00A88E", "#00C8EC", "#3FE0BF"]}
+              animationSpeed={5.5}
+              scale={3}
+              yoyo={false}
+              glow={0.45}
+              className="acx-event-kicker"
+            >
+              Техническая поддержка ACROTIX
+            </GradientText>
           </p>
-          <h1 className="max-w-xl font-heading text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">
-            Поддержка, которая <span className="text-primary">рядом</span>
+          <h1 className="max-w-xl text-4xl font-medium leading-tight tracking-tight xl:text-5xl">
+            <GradientText
+              colors={["#FFFFFF", "#35AACD", "#00A88E", "#00C8EC", "#FFFFFF"]}
+              animationSpeed={8}
+              scale={3.5}
+              yoyo={false}
+              glow={0.36}
+              className="acx-event-heading"
+            >
+              Поддержка, которая рядом
+            </GradientText>
           </h1>
 
           <div className="relative mt-10 h-[23rem] max-w-md overflow-hidden rounded-3xl border border-primary/25 bg-[#07346c] shadow-2xl shadow-primary/15">
