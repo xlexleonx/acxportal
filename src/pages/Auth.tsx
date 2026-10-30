@@ -92,7 +92,7 @@ export default function Auth() {
         <i />
       </div>
       <GalaxyBackground
-        className="pointer-events-none absolute inset-0 z-[1]"
+        className="auth-galaxy-stars pointer-events-none absolute inset-0 z-[1]"
         hueShift={194}
         saturation={0}
         starColors={["#FFFFFF", "#C8F3FF", "#8BE9DF", "#35AACD"]}

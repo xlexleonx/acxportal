@@ -196,6 +196,11 @@
   animation-delay: -11s;
 }
 
+.auth-galaxy-stars canvas {
+  mix-blend-mode: screen;
+  filter: grayscale(1) brightness(1.35) contrast(1.12) drop-shadow(0 0 5px rgba(149, 241, 255, 0.42));
+}
+
 @keyframes acx-aurora-drift {
   from { transform: translate3d(-3%, -2%, 0) scale(0.96); }
   to { transform: translate3d(5%, 4%, 0) scale(1.06); }
