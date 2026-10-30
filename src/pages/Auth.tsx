@@ -123,8 +123,8 @@ export default function Auth() {
             </GradientText>
           </h1>
 
-          <div className="mt-8 max-w-lg">
-            <div className="mx-auto h-[19rem] max-w-[21rem]">
+          <div className="mt-7 max-w-lg">
+            <div className="mx-auto h-[17rem] max-w-[19rem] -translate-y-1">
               <img
                 src={acroSupport}
                 alt="Акро, помощник технической поддержки"
@@ -136,7 +136,7 @@ export default function Auth() {
         </section>
 
         <div className="w-full max-w-md justify-self-center">
-          <div className="relative mb-3 h-28 lg:hidden">
+          <div className="relative mb-3 h-[6.5rem] lg:hidden">
             <img
               src={acroSupport}
               alt="Акро, помощник технической поддержки"
