@@ -10,11 +10,11 @@ export default function AppLayout() {
   // Activates realtime browser notifications when permission is granted.
   useBrowserNotifications();
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-dvh min-h-0 overflow-hidden">
       <AppSidebar />
-      <div className="flex-1 flex flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <MobileNav />
-        <main className="flex-1 overflow-auto relative">
+        <main className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
           <DynamicIsland />
           <div className="hidden lg:flex items-center justify-end gap-3 px-6 mt-2">
             <ZabbixConnectionPicker />

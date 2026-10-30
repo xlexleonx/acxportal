@@ -236,10 +236,10 @@ export default function AppSidebar() {
   return (
     <TooltipProvider delayDuration={150}>
     <aside className={cn(
-      "hidden lg:flex lg:flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border min-h-screen transition-[width] duration-200",
+      "hidden lg:flex lg:h-dvh lg:min-h-0 lg:flex-col lg:overflow-hidden bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-[width] duration-200",
       collapsed ? "lg:w-16" : "lg:w-64",
     )}>
-      <div className={cn("flex items-center gap-3 py-4 border-b border-sidebar-border", collapsed ? "px-2 justify-center" : "px-5")}>
+      <div className={cn("shrink-0 flex items-center gap-3 py-4 border-b border-sidebar-border", collapsed ? "px-2 justify-center" : "px-5")}>
         <button
           type="button"
           aria-label="Logo"
@@ -261,7 +261,7 @@ export default function AppSidebar() {
         )}
       </div>
 
-      <div className="px-2 pt-3 flex items-center gap-1">
+      <div className="shrink-0 px-2 pt-3 flex items-center gap-1">
         {!collapsed && <div className="flex-1"><GlobalSearch /></div>}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -279,7 +279,7 @@ export default function AppSidebar() {
         </Tooltip>
       </div>
 
-      <nav className="flex-1 px-3 py-2 overflow-y-auto">
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
         {sections.map((rawSection) => {
           const section = visibleSection(rawSection);
           if (!section) return null;
@@ -323,7 +323,7 @@ export default function AppSidebar() {
       </nav>
 
 
-      <div className={cn("py-3 border-t border-sidebar-border", collapsed ? "px-2" : "px-3")}>
+      <div className={cn("shrink-0 py-3 border-t border-sidebar-border", collapsed ? "px-2" : "px-3")}>
         {!collapsed && (hasRole("admin") || hasRole("engineer")) && (
           <Button
             variant="outline"
