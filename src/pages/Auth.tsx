@@ -95,11 +95,12 @@ export default function Auth() {
         className="pointer-events-none absolute inset-0 z-[1]"
         hueShift={194}
         saturation={0}
+        starColors={["#FFFFFF", "#C8F3FF", "#8BE9DF", "#35AACD"]}
         density={1}
-        glowIntensity={0.3}
+        glowIntensity={0.48}
         starSize={1}
-        flareIntensity={1}
-        twinkleIntensity={0.3}
+        flareIntensity={0.7}
+        twinkleIntensity={0.4}
         starSpeed={0.5}
         speed={1}
         rotationSpeed={0.1}
