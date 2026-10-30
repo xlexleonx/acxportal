@@ -119,23 +119,7 @@
 /* ─── ACROTIX visual language ─── */
 .auth-shell {
   isolation: isolate;
-  background:
-    radial-gradient(circle at 9% 20%, hsl(184 83% 40% / 0.16), transparent 26rem),
-    radial-gradient(circle at 88% 78%, hsl(354 84% 51% / 0.10), transparent 30rem),
-    linear-gradient(135deg, hsl(206 39% 96%) 0%, hsl(195 43% 93%) 100%);
-}
-
-.dark .auth-shell {
-  background:
-    radial-gradient(circle at 13% 18%, hsl(184 80% 39% / 0.25), transparent 25rem),
-    radial-gradient(circle at 83% 80%, hsl(354 83% 50% / 0.13), transparent 29rem),
-    linear-gradient(135deg, hsl(211 58% 7%) 0%, hsl(205 53% 10%) 50%, hsl(211 57% 7%) 100%);
-}
-
-.auth-grid {
-  background-image: radial-gradient(hsl(var(--primary) / 0.22) 1px, transparent 1px);
-  background-size: 22px 22px;
-  mask-image: linear-gradient(to bottom, transparent, black 16%, black 84%, transparent);
+  background: #010711;
 }
 
 .auth-card {

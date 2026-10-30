@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import ThemeToggle from "@/components/ThemeToggle";
+import GalaxyBackground from "@/components/GalaxyBackground";
 import acroSupport from "@/assets/acro-support.png";
 import { Clock, ShieldPlus, Sparkles } from "lucide-react";
 
@@ -84,9 +85,8 @@ export default function Auth() {
 
   return (
     <div className="auth-shell min-h-screen overflow-hidden px-4 py-6 relative">
-      <div className="auth-grid pointer-events-none absolute inset-0 z-0 opacity-60" />
-      <div className="pointer-events-none absolute -left-24 top-32 z-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-      <div className="pointer-events-none absolute -right-24 bottom-16 z-0 h-80 w-80 rounded-full bg-destructive/10 blur-3xl" />
+      <GalaxyBackground />
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(110deg,rgba(1,10,22,0.4),transparent_56%,rgba(1,9,18,0.3))]" />
 
       <div className="absolute top-4 right-4 z-10 md:top-6 md:right-6 flex items-center gap-2 rounded-full border border-border/70 bg-card/70 p-1.5 pl-3 backdrop-blur-md">
         <span className="text-xs text-muted-foreground">Тема</span>
