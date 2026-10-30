@@ -152,7 +152,57 @@
 /* ─── ACROTIX visual language ─── */
 .auth-shell {
   isolation: isolate;
-  background: #010711;
+  background: #061624;
+}
+
+.auth-aurora {
+  overflow: hidden;
+  opacity: 0.75;
+}
+
+.auth-aurora i {
+  position: absolute;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  filter: blur(40px);
+  animation: acx-aurora-drift 18s ease-in-out infinite alternate;
+}
+
+.auth-aurora i:nth-child(1) {
+  width: 60vmax;
+  height: 60vmax;
+  left: -10%;
+  top: -15%;
+  background: radial-gradient(circle, rgba(53, 170, 205, 0.55), transparent 62%);
+}
+
+.auth-aurora i:nth-child(2) {
+  width: 55vmax;
+  height: 55vmax;
+  right: -15%;
+  top: 10%;
+  background: radial-gradient(circle, rgba(0, 168, 142, 0.45), transparent 62%);
+  animation-duration: 22s;
+  animation-delay: -6s;
+}
+
+.auth-aurora i:nth-child(3) {
+  width: 50vmax;
+  height: 50vmax;
+  left: 20%;
+  bottom: -25%;
+  background: radial-gradient(circle, rgba(0, 200, 236, 0.35), transparent 62%);
+  animation-duration: 26s;
+  animation-delay: -11s;
+}
+
+@keyframes acx-aurora-drift {
+  from { transform: translate3d(-3%, -2%, 0) scale(0.96); }
+  to { transform: translate3d(5%, 4%, 0) scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-aurora i { animation: none; }
 }
 
 .auth-card {

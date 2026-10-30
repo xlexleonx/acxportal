@@ -86,8 +86,13 @@ export default function Auth() {
 
   return (
     <div className="auth-shell min-h-screen overflow-hidden px-4 py-6 relative">
+      <div className="auth-aurora pointer-events-none absolute inset-0 z-0" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </div>
       <GalaxyBackground
-        className="pointer-events-none absolute inset-0 z-0"
+        className="pointer-events-none absolute inset-0 z-[1]"
         hueShift={194}
         saturation={0}
         density={1}
@@ -107,7 +112,7 @@ export default function Auth() {
         intro
         lightMode={false}
       />
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[linear-gradient(110deg,rgba(1,10,22,0.4),transparent_56%,rgba(1,9,18,0.3))]" />
+      <div className="pointer-events-none absolute inset-0 z-[2] bg-[linear-gradient(110deg,rgba(1,10,22,0.3),transparent_56%,rgba(1,9,18,0.2))]" />
 
       <div className="absolute top-4 right-4 z-10 md:top-6 md:right-6 flex items-center gap-2 rounded-full border border-border/70 bg-card/70 p-1.5 pl-3 backdrop-blur-md">
         <span className="text-xs text-muted-foreground">Тема</span>
