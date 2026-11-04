@@ -23,6 +23,9 @@ function activeConnectionId(): string | null {
 // keep working without per-call generic annotations.
 export function invokeZabbix<T = any>(payload: { body?: Record<string, unknown> } = {}) {
   const id = activeConnectionId();
-  const nextBody = { ...(payload.body ?? {}), ...(id ? { connection_id: id } : {}) };
+  // Явно переданный connection_id важнее глобально выбранного. Это нужно
+  // при проверке нового/редактируемого подключения: иначе тест уходил к
+  // старому выбранному серверу из localStorage.
+  const nextBody = { ...(id ? { connection_id: id } : {}), ...(payload.body ?? {}) };
   return supabase.functions.invoke<T>("zabbix-proxy", { body: nextBody });
 }
