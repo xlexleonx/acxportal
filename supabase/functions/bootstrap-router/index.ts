@@ -25,6 +25,7 @@ import agentIngest from "file:///home/deno/functions/agent-ingest/index.ts";
 import agentCommand from "file:///home/deno/functions/agent-command/index.ts";
 import agentProblems from "file:///home/deno/functions/agent-problems/index.ts";
 import agentUpdate from "file:///home/deno/functions/agent-update/index.ts";
+import collectorIngest from "file:///home/deno/functions/collector-ingest/index.ts";
 
 const routes: Record<string, (req: Request) => Promise<Response>> = {
   "zabbix-proxy": zabbixProxy,
@@ -54,6 +55,7 @@ const routes: Record<string, (req: Request) => Promise<Response>> = {
   "agent-command": agentCommand,
   "agent-problems": agentProblems,
   "agent-update": agentUpdate,
+  "collector-ingest": collectorIngest,
 };
 
 Deno.serve(async (req) => {
