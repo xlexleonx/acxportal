@@ -79,5 +79,15 @@ cp -a "$DIST_DIR" "$BACKUP_DIR"
 echo "Публикую новую сборку без перезапуска Nginx..."
 cp -a "$BUILD_DIR/dist/." "$DIST_DIR/"
 
+# A Collector must be able to download the public CA certificate, but never
+# the private key. Copy the certificate into the static web root explicitly.
+CA_CERT_PATH="$PORTAL_ROOT/nginx/ssl/acx-internal-ca.crt"
+if [[ -f "$CA_CERT_PATH" ]]; then
+  install -m 644 "$CA_CERT_PATH" "$DIST_DIR/collector-ca.crt"
+  echo "Опубликован публичный CA-сертификат для коллекторов."
+else
+  echo "CA-сертификат не найден: $CA_CERT_PATH. Загрузка для коллекторов пока недоступна." >&2
+fi
+
 echo "Готово. Активная версия Git: $(git -C "$REPO_DIR" rev-parse --short HEAD)"
 echo "Резервная копия: $BACKUP_DIR"
