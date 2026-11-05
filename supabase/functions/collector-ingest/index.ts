@@ -52,6 +52,7 @@ async function persistTelemetry(supabase: any, collectorConnectionId: string, ev
   const metrics = new Map<string, Record<string, unknown>>();
   const openedProblems = new Map<string, Record<string, unknown>>();
   const closedProblems: Array<{ collector_device_id: string; trigger_id: string; closed_at: string }> = [];
+  const inventories = new Map<string, string[]>();
   for (const event of events) {
     const payload = asRecord(event.payload);
     const source = asRecord(payload.device);
@@ -73,6 +74,12 @@ async function persistTelemetry(supabase: any, collectorConnectionId: string, ev
         collected_at: text(metric.collected_at, timestamp),
       });
     }
+    if (event.type === "device.inventory") {
+      const keys = Array.isArray(payload.metrics)
+        ? payload.metrics.map((metric) => text(asRecord(metric).key)).filter(Boolean)
+        : [];
+      inventories.set(collectorDeviceId, keys);
+    }
     if (event.type === "problem.opened") {
       const triggerId = text(payload.trigger_id);
       if (!triggerId) continue;
@@ -92,9 +99,32 @@ async function persistTelemetry(supabase: any, collectorConnectionId: string, ev
     }
   }
   if (metrics.size) {
-    const { error } = await supabase.from("collector_metric_values")
-      .upsert([...metrics.values()], { onConflict: "collector_device_id,item_key" });
-    if (error) throw error;
+    const metricRows = [...metrics.values()];
+    const deviceIdsForMetrics = [...new Set(metricRows.map((metric) => metric.collector_device_id))];
+    const { data: existingMetrics, error: existingMetricsError } = await supabase.from("collector_metric_values")
+      .select("collector_device_id,item_key,collected_at").in("collector_device_id", deviceIdsForMetrics);
+    if (existingMetricsError) throw existingMetricsError;
+    const existingTimes = new Map((existingMetrics ?? []).map((metric: any) => [`${metric.collector_device_id}:${metric.item_key}`, Date.parse(metric.collected_at)]));
+    const currentRows = metricRows.filter((metric) => {
+      const previous = existingTimes.get(`${metric.collector_device_id}:${metric.item_key}`);
+      return previous === undefined || Date.parse(String(metric.collected_at)) >= previous;
+    });
+    if (currentRows.length) {
+      const { error } = await supabase.from("collector_metric_values")
+        .upsert(currentRows, { onConflict: "collector_device_id,item_key" });
+      if (error) throw error;
+    }
+  }
+  for (const [collectorDeviceId, activeKeys] of inventories) {
+    const { data: existing, error: existingError } = await supabase.from("collector_metric_values")
+      .select("item_key").eq("collector_device_id", collectorDeviceId);
+    if (existingError) throw existingError;
+    const obsolete = (existing ?? []).map((metric: any) => metric.item_key).filter((key: string) => !activeKeys.includes(key));
+    if (obsolete.length) {
+      const { error } = await supabase.from("collector_metric_values")
+        .delete().eq("collector_device_id", collectorDeviceId).in("item_key", obsolete);
+      if (error) throw error;
+    }
   }
   if (openedProblems.size) {
     const { error } = await supabase.from("collector_problems")
