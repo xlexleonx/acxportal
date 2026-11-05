@@ -1,11 +1,12 @@
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plug, Database, GitBranch, FolderArchive } from "lucide-react";
+import { Plug, Database, GitBranch, FolderArchive, DatabaseZap } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent } from "@/components/ui/card";
 import ZabbixConnections from "@/pages/ZabbixConnections";
 import Integrations from "@/pages/Integrations";
 import BackupStorageManager from "@/components/connections/BackupStorageManager";
+import CollectorConnections from "@/components/connections/CollectorConnections";
 
 /**
  * Unified "Подключения" page.
@@ -17,7 +18,8 @@ export default function Connections() {
   const [params, setParams] = useSearchParams();
   const tabParam = params.get("tab");
   const initial =
-    tabParam === "backups" ? "backups"
+    tabParam === "collectors" ? "collectors"
+    : tabParam === "backups" ? "backups"
     : tabParam === "gitlab" || tabParam === "seafile" ? "integrations"
     : "zabbix";
 
@@ -51,6 +53,9 @@ export default function Connections() {
           <TabsTrigger value="zabbix" className="gap-1.5">
             <Database className="h-3.5 w-3.5" /> Источники данных
           </TabsTrigger>
+          <TabsTrigger value="collectors" className="gap-1.5">
+            <DatabaseZap className="h-3.5 w-3.5" /> Коллекторы
+          </TabsTrigger>
           <TabsTrigger value="integrations" className="gap-1.5">
             <GitBranch className="h-3.5 w-3.5" /> Внешние сервисы
           </TabsTrigger>
@@ -60,6 +65,9 @@ export default function Connections() {
         </TabsList>
         <TabsContent value="zabbix" className="mt-4">
           <ZabbixConnections />
+        </TabsContent>
+        <TabsContent value="collectors" className="mt-4">
+          <CollectorConnections />
         </TabsContent>
         <TabsContent value="integrations" className="mt-4">
           <Integrations />
