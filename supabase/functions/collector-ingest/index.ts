@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-acx-installation",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-acx-installation, x-acx-sync-token",
 };
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -17,7 +17,7 @@ export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "content-type": "application/json" } });
 
   const collectorId = req.headers.get("X-ACX-Installation") || "";
-  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  const token = req.headers.get("X-ACX-Sync-Token") || "";
   if (!collectorId || !token) return new Response(JSON.stringify({ error: "Collector credentials are required" }), { status: 401, headers: { ...corsHeaders, "content-type": "application/json" } });
 
   try {
