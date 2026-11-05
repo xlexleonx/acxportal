@@ -31,11 +31,12 @@ interface Props {
   onCreateTicket: (problem: any) => void;
   isStaff: boolean;
   agents?: any[];
+  collectorDevices?: any[];
 }
 
 type SortKey = "name" | "ip" | "group" | "availability" | "problems";
 
-export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateTicket, isStaff, agents = [] }: Props) {
+export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateTicket, isStaff, agents = [], collectorDevices = [] }: Props) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -118,6 +119,9 @@ export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateT
         (a.agent_id || "").toLowerCase().includes(q)
       )
     : agents;
+  const filteredCollectorDevices = q
+    ? collectorDevices.filter((device: any) => `${device.name || ""} ${device.address || ""} ${device.collector_name || ""}`.toLowerCase().includes(q))
+    : collectorDevices;
 
   const pickAgentIp = (ips: any): string => {
     if (!Array.isArray(ips)) return "—";
@@ -177,7 +181,7 @@ export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateT
           {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
         </div>
       ) : hostsArr.length === 0 ? (
-        filteredAgents.length === 0 ? (
+        filteredAgents.length === 0 && filteredCollectorDevices.length === 0 ? (
           <Card>
             <CardContent className="py-10 text-center text-muted-foreground">
               Нет данных о хостах. Проверьте подключение к Zabbix.
@@ -245,6 +249,20 @@ export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateT
             </Table>
               </CardContent>
             </CollapsibleContent>
+          </Collapsible>
+        </Card>
+      )}
+
+      {!hostsLoading && filteredCollectorDevices.length > 0 && (
+        <Card>
+          <Collapsible defaultOpen>
+            <CollapsibleTrigger className="w-full group/collector">
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><ChevronDown className="h-4 w-4 shrink-0 transition-transform group-data-[state=closed]/collector:-rotate-90" /><Activity className="h-4 w-4" />Коллекторы ACROTIX ({filteredCollectorDevices.length})</CardTitle></CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent><CardContent><Table><TableHeader><TableRow><TableHead>Имя</TableHead><TableHead>IP</TableHead><TableHead>Коллектор</TableHead><TableHead>Статус</TableHead><TableHead>Метрики</TableHead><TableHead>Проблемы</TableHead></TableRow></TableHeader><TableBody>{filteredCollectorDevices.map((device: any) => {
+              const online = device.last_seen_at && Date.now() - new Date(device.last_seen_at).getTime() < 3 * 60 * 1000;
+              return <TableRow key={device.device_id}><TableCell><div className="font-medium">{device.name}</div><div className="font-mono text-[10px] text-muted-foreground">{device.protocol || "—"}</div></TableCell><TableCell className="font-mono text-xs text-muted-foreground">{device.address || "—"}</TableCell><TableCell><Badge variant="outline">{device.collector_name}</Badge></TableCell><TableCell><Badge variant={online && device.status === "available" ? "success" : "destructive"}>{online && device.status === "available" ? "Доступен" : "Нет связи"}</Badge></TableCell><TableCell>{device.metric_count}</TableCell><TableCell>{device.active_problems ? <Badge variant="destructive">{device.active_problems}</Badge> : <span className="text-xs text-emerald-500">✓</span>}</TableCell></TableRow>;
+            })}</TableBody></Table></CardContent></CollapsibleContent>
           </Collapsible>
         </Card>
       )}

@@ -20,7 +20,48 @@ const eventTime = (event: CollectorEvent) => {
   return value && !Number.isNaN(Date.parse(value)) ? value : new Date().toISOString();
 };
 
-async function persistTelemetry(supabase: any, collectorConnectionId: string, events: CollectorEvent[]) {
+async function syncEquipment(supabase: any, collector: any, savedDevices: any[], deviceRows: Map<string, Record<string, unknown>>) {
+  let organizationName = "ACROTIX Collector";
+  if (collector.organization_id) {
+    const { data: organization } = await supabase.from("organizations").select("name").eq("id", collector.organization_id).maybeSingle();
+    if (organization?.name) organizationName = organization.name;
+  }
+  const siteName = `Коллектор · ${collector.name}`;
+  let { data: site, error: siteError } = await supabase.from("sites").select("id").eq("name", siteName).maybeSingle();
+  if (siteError) throw siteError;
+  if (!site) {
+    const { data, error } = await supabase.from("sites").insert({ name: siteName, organization: organizationName, organization_id: collector.organization_id || null, description: "Автоматически создано для ACROTIX Collector" }).select("id").single();
+    if (error) throw error;
+    site = data;
+  }
+  for (const saved of savedDevices) {
+    const source = deviceRows.get(saved.source_device_id) ?? {};
+    const status = text(source.status, "unknown") === "available" ? "active" : "faulty";
+    const payload = {
+      site_id: site.id,
+      name: text(source.name, `Устройство ${saved.source_device_id.slice(0, 8)}`),
+      model: text(source.protocol, "Collector"),
+      serial_number: `collector:${collector.id}:${saved.source_device_id}`,
+      description: `Автоматически синхронизировано из ${collector.name}. Адрес: ${text(source.address, "—")}`,
+      status,
+      quantity: 1,
+    };
+    let equipmentId = saved.equipment_id;
+    if (!equipmentId) {
+      const { data, error } = await supabase.from("equipment").insert(payload).select("id").single();
+      if (error) throw error;
+      equipmentId = data.id;
+      const { error: linkError } = await supabase.from("collector_devices").update({ equipment_id: equipmentId }).eq("id", saved.id);
+      if (linkError) throw linkError;
+    } else {
+      const { error } = await supabase.from("equipment").update(payload).eq("id", equipmentId);
+      if (error) throw error;
+    }
+  }
+}
+
+async function persistTelemetry(supabase: any, collector: any, events: CollectorEvent[]) {
+  const collectorConnectionId = collector.id;
   const devices = new Map<string, Record<string, unknown>>();
   for (const event of events) {
     const payload = asRecord(event.payload);
@@ -45,8 +86,9 @@ async function persistTelemetry(supabase: any, collectorConnectionId: string, ev
   const { data: savedDevices, error: devicesError } = await supabase
     .from("collector_devices")
     .upsert([...devices.values()], { onConflict: "collector_connection_id,source_device_id" })
-    .select("id,source_device_id");
+    .select("id,source_device_id,equipment_id");
   if (devicesError) throw devicesError;
+  await syncEquipment(supabase, collector, savedDevices ?? [], devices);
   const deviceIds = new Map((savedDevices ?? []).map((device: any) => [device.source_device_id, device.id]));
 
   const metrics = new Map<string, Record<string, unknown>>();
@@ -153,7 +195,7 @@ export default async function handler(req: Request): Promise<Response> {
     const tokenHash = await sha256(token);
     const { data: collector, error } = await supabase
       .from("collector_connections")
-      .select("id, is_active")
+      .select("id, is_active, organization_id, name")
       .eq("collector_id", collectorId)
       .eq("sync_token_hash", tokenHash)
       .maybeSingle();
@@ -164,7 +206,7 @@ export default async function handler(req: Request): Promise<Response> {
     const events: CollectorEvent[] = Array.isArray(body?.events)
       ? body.events.slice(0, 500)
       : [{ event_id: body?.event_id, type: body?.type, payload: asRecord(body?.payload), created_at: body?.created_at }];
-    await persistTelemetry(supabase, collector.id, events);
+    await persistTelemetry(supabase, collector, events);
     const heartbeat = events.find((event) => event.type === "collector.heartbeat");
     const heartbeatPayload = asRecord(heartbeat?.payload);
     const now = new Date().toISOString();

@@ -79,6 +79,15 @@ export default function Monitoring() {
     },
     refetchInterval: 60000,
   });
+  const { data: collectorDevices = [] } = useQuery({
+    queryKey: ["collector-monitoring-devices"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("list_collector_monitoring_devices");
+      if (error) throw error;
+      return data ?? [];
+    },
+    refetchInterval: 30_000,
+  });
 
   // Zabbix data
   const { data: hosts = [], isLoading: hostsLoading, error: hostsError, refetch: refetchHosts } = useZabbixData("getHosts", isZabbixConfigured);
@@ -230,6 +239,7 @@ export default function Monitoring() {
             onCreateTicket={createTicketFromProblem}
             isStaff={isStaff}
             agents={agents}
+            collectorDevices={collectorDevices}
           />
         </TabsContent>
 
