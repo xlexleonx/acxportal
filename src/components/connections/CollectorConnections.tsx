@@ -14,7 +14,7 @@ import { DatabaseZap, Plus, Trash2, Copy, CheckCircle2, Clock3 } from "lucide-re
 type Collector = {
   id: string; collector_id: string; name: string; organization_id: string | null; is_active: boolean;
   last_seen_at: string | null; last_event_at: string | null; collector_version: string | null;
-  organizations?: { name: string } | null;
+  organization_name: string | null;
 };
 
 const randomHex = (bytes = 24) => Array.from(crypto.getRandomValues(new Uint8Array(bytes))).map((value) => value.toString(16).padStart(2, "0")).join("");
@@ -39,9 +39,7 @@ export default function CollectorConnections() {
   const { data: collectors = [], isLoading } = useQuery({
     queryKey: ["collector-connections"],
     queryFn: async () => {
-      const { data, error } = await (supabase.from("collector_connections" as any) as any)
-        .select("id,collector_id,name,organization_id,is_active,last_seen_at,last_event_at,collector_version,organizations(name)")
-        .order("created_at", { ascending: false });
+      const { data, error } = await (supabase as any).rpc("list_collector_connections");
       if (error) throw error;
       return (data ?? []) as Collector[];
     },
@@ -50,7 +48,7 @@ export default function CollectorConnections() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["collector-connections"] });
   const remove = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase.from("collector_connections" as any) as any).delete().eq("id", id);
+      const { error } = await (supabase as any).rpc("delete_collector_connection", { _id: id });
       if (error) throw error;
     }, onSuccess: () => { refresh(); toast({ title: "Коллектор удалён" }); },
     onError: (error: any) => toast({ title: "Не удалось удалить", description: error.message, variant: "destructive" }),
@@ -60,16 +58,15 @@ export default function CollectorConnections() {
     try {
       const collectorId = `collector_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`;
       const token = randomHex(32);
-      const { error } = await (supabase.from("collector_connections" as any) as any).insert({
-        collector_id: collectorId, name: name.trim(), organization_id: organizationId || null,
-        sync_token_hash: await tokenHash(token), is_active: true,
+      const { error } = await (supabase as any).rpc("create_collector_connection", {
+        _collector_id: collectorId, _name: name.trim(), _organization_id: organizationId || null, _token_hash: await tokenHash(token),
       });
       if (error) throw error;
       setCreateOpen(false); setCredentials({ id: collectorId, token, name: name.trim() }); setName(""); setOrganizationId(""); refresh();
     } catch (error: any) { toast({ title: "Не удалось создать коллектор", description: error.message, variant: "destructive" }); }
   };
   const updateOrganization = async (collector: Collector, value: string) => {
-    const { error } = await (supabase.from("collector_connections" as any) as any).update({ organization_id: value || null }).eq("id", collector.id);
+    const { error } = await (supabase as any).rpc("set_collector_organization", { _id: collector.id, _organization_id: value || null });
     if (error) toast({ title: "Не удалось изменить организацию", description: error.message, variant: "destructive" }); else refresh();
   };
   const copy = async (value: string) => { await navigator.clipboard.writeText(value); toast({ title: "Скопировано" }); };
