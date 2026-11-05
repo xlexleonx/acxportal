@@ -30,7 +30,7 @@ export default function CollectorConnections() {
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [organizationId, setOrganizationId] = useState("");
-  const [credentials, setCredentials] = useState<{ id: string; token: string; name: string } | null>(null);
+  const [credentials, setCredentials] = useState<{ id: string; token: string; name: string; portalUrl: string } | null>(null);
 
   const { data: organizations = [] } = useQuery({
     queryKey: ["organizations"],
@@ -62,7 +62,7 @@ export default function CollectorConnections() {
         _collector_id: collectorId, _name: name.trim(), _organization_id: organizationId || null, _token_hash: await tokenHash(token),
       });
       if (error) throw error;
-      setCreateOpen(false); setCredentials({ id: collectorId, token, name: name.trim() }); setName(""); setOrganizationId(""); refresh();
+      setCreateOpen(false); setCredentials({ id: collectorId, token, name: name.trim(), portalUrl: window.location.origin }); setName(""); setOrganizationId(""); refresh();
     } catch (error: any) { toast({ title: "Не удалось создать коллектор", description: error.message, variant: "destructive" }); }
   };
   const updateOrganization = async (collector: Collector, value: string) => {
@@ -85,6 +85,6 @@ export default function CollectorConnections() {
       </CardContent>
     </Card>
     <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Новый коллектор</DialogTitle><DialogDescription>Будет создан уникальный идентификатор и токен. Токен показывается один раз.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>Название *</Label><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Коллектор Брестэнерго" /></div><div><Label>Организация</Label><select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}><option value="">Привязать позднее</option>{organizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></div></div><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Отмена</Button><Button onClick={create}>Создать</Button></DialogFooter></DialogContent></Dialog>
-    <Dialog open={!!credentials} onOpenChange={(open) => !open && setCredentials(null)}><DialogContent><DialogHeader><DialogTitle>Параметры подключения</DialogTitle><DialogDescription>Сохраните токен сейчас: после закрытия окна он не отображается в портале.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>Идентификатор коллектора</Label><div className="flex gap-2"><Input readOnly value={credentials?.id ?? ""} /><Button variant="outline" size="icon" onClick={() => copy(credentials?.id ?? "")}><Copy className="h-4 w-4" /></Button></div></div><div><Label>Токен синхронизации</Label><div className="flex gap-2"><Textarea readOnly value={credentials?.token ?? ""} className="min-h-20 font-mono text-xs" /><Button variant="outline" size="icon" onClick={() => copy(credentials?.token ?? "")}><Copy className="h-4 w-4" /></Button></div></div><p className="text-xs text-muted-foreground">На коллекторе задайте эти значения как <code>PORTAL_INSTALLATION_ID</code> и <code>PORTAL_SYNC_TOKEN</code>.</p><DialogFooter><Button onClick={() => setCredentials(null)}><CheckCircle2 className="mr-2 h-4 w-4" />Сохранил</Button></DialogFooter></div></DialogContent></Dialog>
+    <Dialog open={!!credentials} onOpenChange={(open) => !open && setCredentials(null)}><DialogContent><DialogHeader><DialogTitle>Параметры подключения</DialogTitle><DialogDescription>Сохраните токен сейчас: после закрытия окна он не отображается в портале.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>URL портала</Label><div className="flex gap-2"><Input readOnly value={credentials?.portalUrl ?? ""} /><Button variant="outline" size="icon" onClick={() => copy(credentials?.portalUrl ?? "")}><Copy className="h-4 w-4" /></Button></div></div><div><Label>Идентификатор коллектора</Label><div className="flex gap-2"><Input readOnly value={credentials?.id ?? ""} /><Button variant="outline" size="icon" onClick={() => copy(credentials?.id ?? "")}><Copy className="h-4 w-4" /></Button></div></div><div><Label>Токен синхронизации</Label><div className="flex gap-2"><Textarea readOnly value={credentials?.token ?? ""} className="min-h-20 font-mono text-xs" /><Button variant="outline" size="icon" onClick={() => copy(credentials?.token ?? "")}><Copy className="h-4 w-4" /></Button></div></div><p className="text-xs text-muted-foreground">На коллекторе откройте <b>Система → Синхронизация</b>, нажмите «Подключить портал» и внесите эти три значения. Редактирование и удаление подключения выполняются там же — без CLI.</p><DialogFooter><Button onClick={() => setCredentials(null)}><CheckCircle2 className="mr-2 h-4 w-4" />Сохранил</Button></DialogFooter></div></DialogContent></Dialog>
   </>;
 }
