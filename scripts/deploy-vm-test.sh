@@ -14,6 +14,8 @@ DIST_DIR="${DIST_DIR:-$PORTAL_ROOT/dist}"
 ENV_FILE="${ENV_FILE:-$PORTAL_ROOT/.env}"
 BRANCH="${BRANCH:-test}"
 PUBLIC_SUPABASE_URL="${PUBLIC_SUPABASE_URL:-https://portal.acx.by}"
+NGINX_CONF_DIR="${NGINX_CONF_DIR:-$PORTAL_ROOT/nginx/conf.d}"
+NGINX_CONTAINER="${NGINX_CONTAINER:-app_nginx}"
 
 for path in "$REPO_DIR" "$DIST_DIR"; do
   [[ -d "$path" ]] || { echo "Не найдена папка: $path" >&2; exit 1; }
@@ -27,6 +29,28 @@ VAPID_PUBLIC_KEY_VALUE="$(sed -n -E 's/^VAPID_PUBLIC_KEY="?([^\"]*)"?$/\1/p' "$E
 
 echo "Получаю ветку $BRANCH из Git..."
 git -C "$REPO_DIR" pull --ff-only origin "$BRANCH"
+
+# The running Nginx configuration is mounted from $PORTAL_ROOT/nginx, not from
+# the Git checkout. Keep it in sync so new static routes (for example the
+# Collector CA certificate) are published with the frontend release.
+SOURCE_NGINX_CONF="$REPO_DIR/nginx/conf.d/app.conf"
+TARGET_NGINX_CONF="$NGINX_CONF_DIR/app.conf"
+if [[ -f "$SOURCE_NGINX_CONF" && -d "$NGINX_CONF_DIR" ]] && ! cmp -s "$SOURCE_NGINX_CONF" "$TARGET_NGINX_CONF"; then
+  NGINX_BACKUP="$TARGET_NGINX_CONF.backup-git-$(date +%Y%m%d-%H%M%S)"
+  if [[ -f "$TARGET_NGINX_CONF" ]]; then
+    cp -a "$TARGET_NGINX_CONF" "$NGINX_BACKUP"
+  fi
+  install -m 644 "$SOURCE_NGINX_CONF" "$TARGET_NGINX_CONF"
+  if ! docker exec "$NGINX_CONTAINER" nginx -t; then
+    if [[ -f "$NGINX_BACKUP" ]]; then
+      cp -a "$NGINX_BACKUP" "$TARGET_NGINX_CONF"
+      echo "Конфигурация Nginx не применена: восстановлена резервная копия $NGINX_BACKUP" >&2
+    fi
+    exit 1
+  fi
+  docker exec "$NGINX_CONTAINER" nginx -s reload
+  echo "Конфигурация Nginx обновлена. Резервная копия: $NGINX_BACKUP"
+fi
 
 BUILD_TAG="$(date +%Y%m%d-%H%M%S)"
 BUILD_DIR="$PORTAL_ROOT/build-git-$BUILD_TAG"
