@@ -12,6 +12,11 @@ async function sha256(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function randomToken(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(32)))
+    .map((value) => value.toString(16).padStart(2, "0")).join("");
+}
+
 type CollectorEvent = { event_id?: string; type?: string; payload?: Record<string, unknown>; created_at?: string };
 const asRecord = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const text = (value: unknown, fallback = ""): string => typeof value === "string" ? value : fallback;
@@ -19,6 +24,51 @@ const eventTime = (event: CollectorEvent) => {
   const value = text(event.created_at);
   return value && !Number.isNaN(Date.parse(value)) ? value : new Date().toISOString();
 };
+
+async function redeemBootstrap(supabase: any, body: any): Promise<Response> {
+  const collectorId = typeof body?.collector_id === "string" ? body.collector_id.trim() : "";
+  const bootstrapToken = typeof body?.bootstrap_token === "string" ? body.bootstrap_token.trim() : "";
+  if (!collectorId || bootstrapToken.length < 32) {
+    return new Response(JSON.stringify({ error: "Collector package is invalid" }), { status: 400, headers: { ...corsHeaders, "content-type": "application/json" } });
+  }
+  const tokenHash = await sha256(bootstrapToken);
+  const { data: collector, error: lookupError } = await supabase
+    .from("collector_connections")
+    .select("id,name,is_active,bootstrap_token_hash,bootstrap_expires_at,bootstrap_used_at")
+    .eq("collector_id", collectorId)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+
+  const expiresAt = collector?.bootstrap_expires_at ? Date.parse(collector.bootstrap_expires_at) : NaN;
+  if (!collector || !collector.is_active || collector.bootstrap_used_at || !Number.isFinite(expiresAt)
+      || expiresAt <= Date.now() || collector.bootstrap_token_hash !== tokenHash) {
+    return new Response(JSON.stringify({ error: "Collector package is invalid, expired, or already used" }), { status: 401, headers: { ...corsHeaders, "content-type": "application/json" } });
+  }
+
+  const syncToken = randomToken();
+  const { data: updated, error: updateError } = await supabase
+    .from("collector_connections")
+    .update({
+      sync_token_hash: await sha256(syncToken),
+      bootstrap_token_hash: "",
+      bootstrap_used_at: new Date().toISOString(),
+    })
+    .eq("id", collector.id)
+    .eq("bootstrap_token_hash", tokenHash)
+    .is("bootstrap_used_at", null)
+    .select("id")
+    .maybeSingle();
+  if (updateError) throw updateError;
+  if (!updated) {
+    return new Response(JSON.stringify({ error: "Collector package was already used" }), { status: 409, headers: { ...corsHeaders, "content-type": "application/json" } });
+  }
+
+  return new Response(JSON.stringify({
+    collector_name: collector.name,
+    sync_token: syncToken,
+    portal_api_key: Deno.env.get("SUPABASE_ANON_KEY")!,
+  }), { headers: { ...corsHeaders, "content-type": "application/json" } });
+}
 
 async function syncEquipment(supabase: any, collector: any, savedDevices: any[], deviceRows: Map<string, Record<string, unknown>>) {
   let organizationName = "ACRO Collector";
@@ -186,12 +236,14 @@ export default async function handler(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { ...corsHeaders, "content-type": "application/json" } });
 
-  const collectorId = req.headers.get("X-ACX-Installation") || "";
-  const token = req.headers.get("X-ACX-Sync-Token") || "";
-  if (!collectorId || !token) return new Response(JSON.stringify({ error: "Collector credentials are required" }), { status: 401, headers: { ...corsHeaders, "content-type": "application/json" } });
-
   try {
     const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+    const body = await req.json().catch(() => ({}));
+    if (body?.bootstrap_token) return await redeemBootstrap(supabase, body);
+
+    const collectorId = req.headers.get("X-ACX-Installation") || "";
+    const token = req.headers.get("X-ACX-Sync-Token") || "";
+    if (!collectorId || !token) return new Response(JSON.stringify({ error: "Collector credentials are required" }), { status: 401, headers: { ...corsHeaders, "content-type": "application/json" } });
     const tokenHash = await sha256(token);
     const { data: collector, error } = await supabase
       .from("collector_connections")
@@ -202,7 +254,6 @@ export default async function handler(req: Request): Promise<Response> {
     if (error) throw error;
     if (!collector || !collector.is_active) return new Response(JSON.stringify({ error: "Invalid collector credentials" }), { status: 401, headers: { ...corsHeaders, "content-type": "application/json" } });
 
-    const body = await req.json().catch(() => ({}));
     const events: CollectorEvent[] = Array.isArray(body?.events)
       ? body.events.slice(0, 500)
       : [{ event_id: body?.event_id, type: body?.type, payload: asRecord(body?.payload), created_at: body?.created_at }];
