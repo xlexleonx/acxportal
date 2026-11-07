@@ -243,7 +243,9 @@ export default function MonitoringProblems({
       _key: `agent-${ap.agent_id}-${ap.kind}-${i}`,
     }));
     const collectorRows = (collectorProblems || []).filter((problem: any) => problem.is_active).map((problem: any) => ({
-      triggerid: problem.problem_id,
+      // The source trigger ID belongs to the collector's Zabbix. problem_id is
+      // only a portal UUID and cannot be used to control the trigger.
+      triggerid: problem.source_trigger_id || problem.problem_id,
       eventid: null,
       host: problem.device_name || "—",
       hostid: problem.device_id || null,

@@ -9,6 +9,7 @@ RETURNS TABLE (
   source_device_id text,
   device_name text,
   device_address text,
+  source_trigger_id text,
   site_id uuid,
   site_name text,
   description text,
@@ -22,7 +23,7 @@ BEGIN
     RAISE EXCEPTION 'Недостаточно прав';
   END IF;
   RETURN QUERY
-  SELECT p.id, c.id, c.name, d.id, d.source_device_id, d.name, d.address,
+  SELECT p.id, c.id, c.name, d.id, d.source_device_id, d.name, d.address, p.source_trigger_id,
     s.id, s.name, p.description, p.severity, p.is_active, p.opened_at, p.closed_at
   FROM public.collector_problems p
   JOIN public.collector_devices d ON d.id = p.collector_device_id
