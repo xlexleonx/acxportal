@@ -21,7 +21,7 @@ const eventTime = (event: CollectorEvent) => {
 };
 
 async function syncEquipment(supabase: any, collector: any, savedDevices: any[], deviceRows: Map<string, Record<string, unknown>>) {
-  let organizationName = "ACROTIX Collector";
+  let organizationName = "ACRO Collector";
   if (collector.organization_id) {
     const { data: organization } = await supabase.from("organizations").select("name").eq("id", collector.organization_id).maybeSingle();
     if (organization?.name) organizationName = organization.name;
@@ -30,7 +30,7 @@ async function syncEquipment(supabase: any, collector: any, savedDevices: any[],
   let { data: site, error: siteError } = await supabase.from("sites").select("id").eq("name", siteName).maybeSingle();
   if (siteError) throw siteError;
   if (!site) {
-    const { data, error } = await supabase.from("sites").insert({ name: siteName, organization: organizationName, organization_id: collector.organization_id || null, description: "Автоматически создано для ACROTIX Collector" }).select("id").single();
+    const { data, error } = await supabase.from("sites").insert({ name: siteName, organization: organizationName, organization_id: collector.organization_id || null, description: "Автоматически создано для ACRO Collector" }).select("id").single();
     if (error) throw error;
     site = data;
   }
