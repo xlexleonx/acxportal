@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ChangeEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { invokeZabbix } from "@/lib/zabbix-invoke";
 import { Link } from "react-router-dom";
@@ -1015,6 +1015,45 @@ const TZCoverageWidget: WidgetMeta["Component"] = ({ chartType }) => {
 };
 
 /* ============ Monitoring: Active problems (Zabbix) ============ */
+const CollectorProblemsWidget: WidgetMeta["Component"] = ({ config, onConfigChange }: any = {}) => {
+  const selectedIds: string[] = Array.isArray(config?.deviceIds) ? config.deviceIds : [];
+  const { data: problems = [] } = useQuery({
+    queryKey: ["dashboard-collector-problems"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("list_collector_monitoring_problems");
+      if (error) throw error;
+      return data ?? [];
+    },
+    refetchInterval: 30000,
+  });
+  const { data: devices = [] } = useQuery({
+    queryKey: ["dashboard-collector-devices"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("list_collector_monitoring_devices");
+      if (error) throw error;
+      return data ?? [];
+    },
+    refetchInterval: 60000,
+  });
+  const filtered = (problems as any[]).filter((problem) => problem.is_active && (!selectedIds.length || selectedIds.includes(problem.device_id)));
+  const chooseDevices = (event: ChangeEvent<HTMLSelectElement>) => {
+    onConfigChange?.({ deviceIds: Array.from(event.target.selectedOptions).map((option) => option.value) });
+  };
+  const severityClass: Record<string, string> = { disaster: "text-red-500", high: "text-red-500", average: "text-orange-500", warning: "text-amber-500", information: "text-sky-500" };
+  return (
+    <WidgetShell title="Активные проблемы ACRO Collector" icon={AlertTriangle}
+      action={<Link to="/monitoring?tab=problems" className="text-sm text-primary hover:underline flex items-center gap-1">Все <ExternalLink className="h-3.5 w-3.5" /></Link>}>
+      <div className="space-y-2">
+        <select multiple value={selectedIds} onChange={chooseDevices} className="w-full min-h-16 rounded-md border border-input bg-background px-2 py-1 text-xs" title="Выберите один или несколько хостов. Если ничего не выбрано, показаны проблемы всех хостов.">
+          {(devices as any[]).map((device) => <option key={device.device_id} value={device.device_id}>{device.name} · {device.collector_name}</option>)}
+        </select>
+        <p className="text-[11px] text-muted-foreground">Выберите хосты для виджета. Без выбора отображаются все.</p>
+      </div>
+      {filtered.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">Активных проблем нет</p> : <div className="mt-3 max-h-64 overflow-y-auto space-y-1.5">{filtered.slice(0, 20).map((problem) => <div key={problem.problem_id} className="rounded-md border p-2 text-xs"><div className="flex items-start gap-2"><AlertTriangle className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", severityClass[problem.severity] || "text-amber-500")} /><div className="min-w-0"><p className="font-medium truncate">{problem.description}</p><p className="text-muted-foreground truncate">{problem.device_name} · {problem.site_name || problem.collector_name}</p></div></div></div>)}</div>}
+    </WidgetShell>
+  );
+};
+
 const RecentEventsWidget: WidgetMeta["Component"] = () => {
   const { data, isError } = useQuery({
     queryKey: ["dashboard-zbx-problems"],
@@ -1280,6 +1319,11 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     type: "monitoring-events", title: "События мониторинга", description: "Свежие события и проблемы.",
     category: "Мониторинг", icon: AlertTriangle, defaultW: 6, defaultH: 7, minW: 3, minH: 5,
     Component: RecentEventsWidget,
+  },
+  "collector-problems": {
+    type: "collector-problems", title: "Проблемы коллекторов", description: "Активные проблемы, полученные от ACRO Collector. В настройках можно выбрать хосты.",
+    category: "Мониторинг", icon: AlertTriangle, defaultW: 6, defaultH: 7, minW: 3, minH: 4,
+    Component: CollectorProblemsWidget,
   },
   "tz-coverage": {
     type: "tz-coverage", title: "Покрытие регламента", description: "Сколько требований ТЗ покрыто мониторингом.",

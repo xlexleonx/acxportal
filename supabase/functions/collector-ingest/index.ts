@@ -112,6 +112,35 @@ async function syncEquipment(supabase: any, collector: any, savedDevices: any[],
 
 async function persistTelemetry(supabase: any, collector: any, events: CollectorEvent[]) {
   const collectorConnectionId = collector.id;
+  // The collector sends one authoritative list on every snapshot. This lets a
+  // customer explicitly stop exporting a host without deleting any manually
+  // created equipment on the portal.
+  const inventoryEvent = [...events].reverse().find((event) => event.type === "collector.inventory");
+  const exportedDeviceIds = inventoryEvent && Array.isArray((asRecord(inventoryEvent.payload).source_device_ids))
+    ? new Set((asRecord(inventoryEvent.payload).source_device_ids as unknown[]).filter((value) => typeof value === "string" && value.length > 0) as string[])
+    : null;
+  if (exportedDeviceIds) {
+    const { data: existing, error: existingError } = await supabase
+      .from("collector_devices")
+      .select("id,source_device_id,equipment_id")
+      .eq("collector_connection_id", collectorConnectionId);
+    if (existingError) throw existingError;
+    const obsolete = (existing ?? []).filter((device: any) => !exportedDeviceIds.has(device.source_device_id));
+    const equipmentIds = obsolete.map((device: any) => device.equipment_id).filter(Boolean);
+    if (equipmentIds.length) {
+      const { data: owned, error: ownedError } = await supabase.from("equipment")
+        .select("id").in("id", equipmentIds).like("serial_number", `collector:${collectorConnectionId}:%`);
+      if (ownedError) throw ownedError;
+      if (owned?.length) {
+        const { error } = await supabase.from("equipment").delete().in("id", owned.map((row: any) => row.id));
+        if (error) throw error;
+      }
+    }
+    if (obsolete.length) {
+      const { error } = await supabase.from("collector_devices").delete().in("id", obsolete.map((device: any) => device.id));
+      if (error) throw error;
+    }
+  }
   const devices = new Map<string, Record<string, unknown>>();
   for (const event of events) {
     const payload = asRecord(event.payload);

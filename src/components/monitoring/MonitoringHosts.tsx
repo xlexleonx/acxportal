@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Search, ArrowLeft, Settings2, RefreshCw, Loader2, Activity , ChevronDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import HostItemsView from "./HostItemsView";
@@ -45,6 +46,17 @@ export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateT
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [selectedHost, setSelectedHost] = useState<any>(null);
   const [detailHost, setDetailHost] = useState<{ id: string; name: string } | null>(null);
+  const [collectorDetail, setCollectorDetail] = useState<any>(null);
+
+  const { data: collectorProblems = [], isLoading: collectorProblemsLoading } = useQuery({
+    queryKey: ["collector-host-problems", collectorDetail?.device_id],
+    enabled: !!collectorDetail?.device_id,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("list_collector_monitoring_problems");
+      if (error) throw error;
+      return (data ?? []).filter((problem: any) => problem.device_id === collectorDetail.device_id && problem.is_active);
+    },
+  });
 
   const hostsArr = Array.isArray(hosts) ? hosts : [];
   const alertsArr = Array.isArray(alerts) ? alerts : [];
@@ -261,7 +273,7 @@ export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateT
             </CollapsibleTrigger>
             <CollapsibleContent><CardContent><Table><TableHeader><TableRow><TableHead>Имя</TableHead><TableHead>IP</TableHead><TableHead>Коллектор</TableHead><TableHead>Статус</TableHead><TableHead>Метрики</TableHead><TableHead>Проблемы</TableHead></TableRow></TableHeader><TableBody>{filteredCollectorDevices.map((device: any) => {
               const online = device.last_seen_at && Date.now() - new Date(device.last_seen_at).getTime() < 3 * 60 * 1000;
-              return <TableRow key={device.device_id}><TableCell><div className="font-medium">{device.name}</div><div className="font-mono text-[10px] text-muted-foreground">{device.protocol || "—"}</div></TableCell><TableCell className="font-mono text-xs text-muted-foreground">{device.address || "—"}</TableCell><TableCell><Badge variant="outline">{device.collector_name}</Badge></TableCell><TableCell><Badge variant={online && device.status === "available" ? "success" : "destructive"}>{online && device.status === "available" ? "Доступен" : "Нет связи"}</Badge></TableCell><TableCell>{device.metric_count}</TableCell><TableCell>{device.active_problems ? <Badge variant="destructive">{device.active_problems}</Badge> : <span className="text-xs text-emerald-500">✓</span>}</TableCell></TableRow>;
+              return <TableRow key={device.device_id} className={device.active_problems ? "cursor-pointer" : undefined} onClick={() => device.active_problems && setCollectorDetail(device)}><TableCell><div className="font-medium">{device.name}</div><div className="font-mono text-[10px] text-muted-foreground">{device.protocol || "—"}</div></TableCell><TableCell className="font-mono text-xs text-muted-foreground">{device.address || "—"}</TableCell><TableCell><Badge variant="outline">{device.collector_name}</Badge></TableCell><TableCell><Badge variant={online && device.status === "available" ? "success" : "destructive"}>{online && device.status === "available" ? "Доступен" : "Нет связи"}</Badge></TableCell><TableCell>{device.metric_count}</TableCell><TableCell>{device.active_problems ? <Button size="sm" variant="destructive" onClick={(event) => { event.stopPropagation(); setCollectorDetail(device); }}>Проблемы: {device.active_problems}</Button> : <span className="text-xs text-emerald-500">✓</span>}</TableCell></TableRow>;
             })}</TableBody></Table></CardContent></CollapsibleContent>
           </Collapsible>
         </Card>
@@ -371,6 +383,15 @@ export default function MonitoringHosts({ hosts, alerts, hostsLoading, onCreateT
         zabbixHostId={detailHost?.id ?? null}
         hostName={detailHost?.name}
       />
+      <Dialog open={!!collectorDetail} onOpenChange={(open) => !open && setCollectorDetail(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Активные проблемы: {collectorDetail?.name}</DialogTitle>
+            <DialogDescription>{collectorDetail?.collector_name} · {collectorDetail?.address || "адрес не указан"}</DialogDescription>
+          </DialogHeader>
+          {collectorProblemsLoading ? <div className="py-6 text-sm text-muted-foreground">Загрузка…</div> : collectorProblems.length === 0 ? <div className="py-6 text-sm text-muted-foreground">Активных проблем нет.</div> : <div className="space-y-2 max-h-[55vh] overflow-y-auto">{collectorProblems.map((problem: any) => <div key={problem.problem_id} className="rounded-md border p-3"><div className="flex gap-2 items-center"><Badge variant={problem.severity === "high" || problem.severity === "disaster" ? "destructive" : "default"}>{problem.severity}</Badge><span className="font-medium">{problem.description}</span></div><div className="mt-1 text-xs text-muted-foreground">Открыта: {problem.opened_at ? new Date(problem.opened_at).toLocaleString("ru-RU") : "—"}</div></div>)}</div>}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

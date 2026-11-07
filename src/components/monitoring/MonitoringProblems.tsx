@@ -55,12 +55,14 @@ interface Props {
   onCreateTicket: (problem: any) => void;
   onAcknowledge: (eventid: string) => void;
   initialPriorityFilter?: string;
+  collectorProblems?: any[];
 }
 
 export default function MonitoringProblems({
   problems, alerts, problemsLoading, alertsLoading,
   isStaff, onCreateTicket, onAcknowledge, initialPriorityFilter,
   agentProblems = [],
+  collectorProblems = [],
 }: Props & { agentProblems?: any[] }) {
   const { toast } = useToast();
   const { hasRole, user } = useAuth();
@@ -76,6 +78,7 @@ export default function MonitoringProblems({
   const [groupByHost, setGroupByHost] = useState<boolean>(!!persisted.groupByHost);
   const [sortBy, setSortBy] = useState<SortBy>((persisted.sortBy as SortBy) || "time");
   const [sortDir, setSortDir] = useState<SortDir>((persisted.sortDir as SortDir) || "desc");
+  const [siteFilter, setSiteFilter] = useState<string>("all");
 
   useEffect(() => {
     saveLS({ priorityFilter, hostFilter, showDismissed, onlyUnack, groupByHost, sortBy, sortDir });
@@ -206,7 +209,23 @@ export default function MonitoringProblems({
       agent_id: ap.agent_id,
       _key: `agent-${ap.agent_id}-${ap.kind}-${i}`,
     }));
-    let list = [...agentRows, ...Array.from(byTrigger.values())];
+    const collectorRows = (collectorProblems || []).filter((problem: any) => problem.is_active).map((problem: any) => ({
+      triggerid: problem.problem_id,
+      eventid: null,
+      host: problem.device_name || "—",
+      hostid: problem.device_id || null,
+      name: problem.description,
+      severity: ({ disaster: "5", high: "4", average: "3", warning: "2", information: "1", not_classified: "0" } as Record<string, string>)[problem.severity] || "2",
+      clock: problem.opened_at ? String(Math.floor(new Date(problem.opened_at).getTime() / 1000)) : null,
+      acknowledged: false,
+      source: "collector" as const,
+      collector_name: problem.collector_name,
+      site_id: problem.site_id,
+      site_name: problem.site_name,
+      _key: `collector-${problem.problem_id}`,
+    }));
+    let list = [...collectorRows, ...agentRows, ...Array.from(byTrigger.values())];
+    if (siteFilter !== "all") list = list.filter((row: any) => row.site_id === siteFilter);
     if (!showDismissed) {
       list = list.filter((r) => !r.eventid || !dismissedSet.has(r.eventid));
     }
@@ -218,7 +237,13 @@ export default function MonitoringProblems({
       );
     }
     return list;
-  }, [problemsArr, alertsArr, hostFilter, dismissedSet, showDismissed, agentProblems]);
+  }, [problemsArr, alertsArr, hostFilter, dismissedSet, showDismissed, agentProblems, collectorProblems, siteFilter]);
+
+  const collectorSites = useMemo(() => {
+    const sites = new Map<string, string>();
+    for (const problem of collectorProblems || []) if (problem.site_id) sites.set(problem.site_id, problem.site_name || "Без ЦОДа");
+    return [...sites.entries()].map(([id, name]) => ({ id, name }));
+  }, [collectorProblems]);
 
   const severityCounts = useMemo(() => {
     const c: Record<string, number> = { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
@@ -414,6 +439,10 @@ export default function MonitoringProblems({
             <SelectItem value="0">П4 — Не классиф.</SelectItem>
           </SelectContent>
         </Select>
+        {collectorSites.length > 0 && <Select value={siteFilter} onValueChange={setSiteFilter}>
+          <SelectTrigger className="w-[220px]"><SelectValue placeholder="Все ЦОДы" /></SelectTrigger>
+          <SelectContent><SelectItem value="all">Все ЦОДы</SelectItem>{collectorSites.map((site) => <SelectItem key={site.id} value={site.id}>{site.name}</SelectItem>)}</SelectContent>
+        </Select>}
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -594,7 +623,7 @@ export default function MonitoringProblems({
                         </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={`text-xs ${r.source === "agent" ? "border-cyan-500 text-cyan-500" : ""}`}>
-                              {r.source === "agent" ? "Агент" : r.source === "problem" ? "Проблема" : "Триггер"}
+                              {r.source === "collector" ? `Коллектор${r.collector_name ? ` · ${r.collector_name}` : ""}` : r.source === "agent" ? "Агент" : r.source === "problem" ? "Проблема" : "Триггер"}
                             </Badge>
                           </TableCell>
                         <TableCell>

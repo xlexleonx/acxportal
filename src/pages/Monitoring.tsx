@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { invokeZabbix } from "@/lib/zabbix-invoke";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,7 +61,8 @@ export default function Monitoring() {
   const { toast } = useToast();
   const { isStaff } = useAuth();
   const queryClient = useQueryClient();
-  const [tab, setTab] = useState("hosts");
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get("tab") === "problems" ? "problems" : "hosts");
   const [problemPriorityFilter, setProblemPriorityFilter] = useState("all");
 
   const { data: isZabbixConfigured = false } = useZabbixConfigured();
@@ -88,6 +89,24 @@ export default function Monitoring() {
     },
     refetchInterval: 30_000,
   });
+  const { data: collectorProblems = [] } = useQuery({
+    queryKey: ["collector-monitoring-problems"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("list_collector_monitoring_problems");
+      if (error) throw error;
+      return data ?? [];
+    },
+    refetchInterval: 30_000,
+  });
+  const { data: collectorConnections = [] } = useQuery({
+    queryKey: ["collector-monitoring-connections"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("list_collector_connections");
+      if (error) throw error;
+      return data ?? [];
+    },
+    refetchInterval: 60_000,
+  });
 
   // Zabbix data
   const { data: hosts = [], isLoading: hostsLoading, error: hostsError, refetch: refetchHosts } = useZabbixData("getHosts", isZabbixConfigured);
@@ -107,7 +126,8 @@ export default function Monitoring() {
   const { data: graphs = [] } = useZabbixData("getGraphs", isZabbixConfigured);
   const { data: scripts = [] } = useZabbixData("getScripts", isZabbixConfigured);
 
-  const connectionError = !isZabbixConfigured || hostsError != null;
+  const hasCollectorMonitoring = collectorDevices.length > 0 || collectorConnections.some((connection: any) => connection.is_active);
+  const connectionError = (!isZabbixConfigured || hostsError != null) && !hasCollectorMonitoring;
 
   const handleRefresh = () => {
     refetchHosts();
@@ -115,6 +135,8 @@ export default function Monitoring() {
     refetchAlerts();
     queryClient.invalidateQueries({ queryKey: ["zabbix", "getItems"] });
     queryClient.invalidateQueries({ queryKey: ["zabbix", "getScripts"] });
+    queryClient.invalidateQueries({ queryKey: ["collector-monitoring-devices"] });
+    queryClient.invalidateQueries({ queryKey: ["collector-monitoring-problems"] });
     toast({ title: "Данные обновляются..." });
   };
 
@@ -253,6 +275,7 @@ export default function Monitoring() {
             onCreateTicket={createTicketFromProblem}
             onAcknowledge={acknowledgeEvent}
             initialPriorityFilter={problemPriorityFilter}
+            collectorProblems={collectorProblems}
           />
         </TabsContent>
 
