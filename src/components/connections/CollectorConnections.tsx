@@ -6,11 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DatabaseZap, Plus, Trash2, Copy, CheckCircle2, Clock3, Download, BarChart3 } from "lucide-react";
+import { DatabaseZap, Plus, Trash2, Clock3, Download, BarChart3 } from "lucide-react";
 
 type Collector = {
   id: string; collector_id: string; name: string; organization_id: string | null; is_active: boolean;
@@ -31,9 +30,8 @@ export default function CollectorConnections() {
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [organizationId, setOrganizationId] = useState("");
-  const [credentials, setCredentials] = useState<{ id: string; token: string; name: string; portalUrl: string; portalApiKey: string } | null>(null);
+  const [packageReady, setPackageReady] = useState<{ collector: Pick<Collector, "id" | "collector_id" | "name">; token: string } | null>(null);
   const [telemetryCollector, setTelemetryCollector] = useState<Collector | null>(null);
-  const portalApiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
 
   const { data: organizations = [] } = useQuery({
     queryKey: ["organizations"],
@@ -73,40 +71,78 @@ export default function CollectorConnections() {
     }, onSuccess: () => { refresh(); toast({ title: "Коллектор удалён" }); },
     onError: (error: any) => toast({ title: "Не удалось удалить", description: error.message, variant: "destructive" }),
   });
+
+  const downloadPackage = async (collector: Pick<Collector, "collector_id" | "name">, bootstrapToken: string) => {
+    const response = await fetch("/collector-ca.crt", { cache: "no-store" });
+    if (!response.ok) throw new Error("Не удалось получить сертификат CA с портала");
+    const caCertificate = await response.text();
+    if (!caCertificate.includes("-----BEGIN CERTIFICATE-----")) throw new Error("Портал вернул некорректный сертификат CA");
+    const payload = {
+      format: "acro-collector-connection",
+      version: 1,
+      issued_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      portal_url: window.location.origin,
+      collector_id: collector.collector_id,
+      collector_name: collector.name,
+      bootstrap_token: bootstrapToken,
+      ca_certificate: caCertificate,
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `acro-collector-${collector.collector_id}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const issuePackage = async (collector: Collector) => {
+    if (!confirm(`Выпустить новый файл для «${collector.name}»? Старый неиспользованный файл станет недействителен через 24 часа.`)) return;
+    try {
+      const token = randomHex(32);
+      const { error } = await (supabase as any).rpc("issue_collector_bootstrap", { _id: collector.id, _token_hash: await tokenHash(token) });
+      if (error) throw error;
+      await downloadPackage(collector, token);
+      toast({ title: "Файл подключения скачан", description: "Загрузите его в ACRO Collector в разделе «Подключение к порталу»." });
+      refresh();
+    } catch (error: any) {
+      toast({ title: "Не удалось выпустить файл", description: error.message, variant: "destructive" });
+    }
+  };
+
   const create = async () => {
     if (!name.trim()) return toast({ title: "Укажите название коллектора", variant: "destructive" });
     try {
       const collectorId = `collector_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`;
       const token = randomHex(32);
-      const { error } = await (supabase as any).rpc("create_collector_connection", {
+      const { data: id, error } = await (supabase as any).rpc("create_collector_connection", {
         _collector_id: collectorId, _name: name.trim(), _organization_id: organizationId || null, _token_hash: await tokenHash(token),
       });
       if (error) throw error;
-      setCreateOpen(false); setCredentials({ id: collectorId, token, name: name.trim(), portalUrl: window.location.origin, portalApiKey }); setName(""); setOrganizationId(""); refresh();
+      setCreateOpen(false); setPackageReady({ collector: { id, collector_id: collectorId, name: name.trim() }, token }); setName(""); setOrganizationId(""); refresh();
     } catch (error: any) { toast({ title: "Не удалось создать коллектор", description: error.message, variant: "destructive" }); }
   };
   const updateOrganization = async (collector: Collector, value: string) => {
     const { error } = await (supabase as any).rpc("set_collector_organization", { _id: collector.id, _organization_id: value || null });
     if (error) toast({ title: "Не удалось изменить организацию", description: error.message, variant: "destructive" }); else refresh();
   };
-  const copy = async (value: string) => { await navigator.clipboard.writeText(value); toast({ title: "Скопировано" }); };
-
   return <>
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <div><CardTitle className="text-base flex items-center gap-2"><DatabaseZap className="h-4 w-4 text-primary" /> Коллекторы ACROTIX</CardTitle><CardDescription className="mt-1">Локальные коллекторы заказчиков. Привязка к организации определяет контекст будущих метрик и проблем.</CardDescription></div>
-        <div className="flex gap-2"><Button asChild variant="outline"><a href="/collector-ca.crt" download><Download className="h-4 w-4 mr-2" />Сертификат CA</a></Button><Button onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-2" />Новый коллектор</Button></div>
+        <div><CardTitle className="text-base flex items-center gap-2"><DatabaseZap className="h-4 w-4 text-primary" /> Коллекторы ACRO</CardTitle><CardDescription className="mt-1">Локальные коллекторы заказчиков. Привязка к организации определяет контекст будущих метрик и проблем.</CardDescription></div>
+        <div className="flex gap-2"><Button onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-2" />Новый коллектор</Button></div>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 rounded-lg border bg-muted/20 p-3"><div className="mb-2 text-xs text-muted-foreground">Публичный API-ключ шлюза нужен каждому коллектору для доступа к Edge Function. Это не токен синхронизации и его можно получить повторно.</div><div className="flex gap-2"><Input readOnly value={portalApiKey} className="font-mono text-xs" /><Button variant="outline" size="icon" title="Скопировать API-ключ" onClick={() => copy(portalApiKey)} disabled={!portalApiKey}><Copy className="h-4 w-4" /></Button></div></div>
-        {isLoading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : collectors.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Коллекторов ещё нет. Создайте подключение и укажите выданные параметры на локальном коллекторе.</p> : <div className="space-y-3">{collectors.map((collector) => {
+        {isLoading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : collectors.length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Коллекторов ещё нет. Создайте коллектор, скачайте файл подключения и загрузите его на локальном ACRO Collector.</p> : <div className="space-y-3">{collectors.map((collector) => {
           const online = isOnline(collector.last_seen_at);
-          return <div key={collector.id} className="rounded-lg border p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="min-w-0"><div className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${online ? "bg-emerald-500" : "bg-muted-foreground"}`} /><b>{collector.name}</b><Badge variant={collector.is_active ? "secondary" : "destructive"}>{collector.is_active ? online ? "На связи" : "Ожидание связи" : "Отключён"}</Badge></div><div className="mt-1 text-xs font-mono text-muted-foreground truncate">{collector.collector_id}</div><div className="mt-1 text-xs text-muted-foreground flex items-center gap-1"><Clock3 className="h-3 w-3" />{collector.last_seen_at ? `Последняя связь: ${new Date(collector.last_seen_at).toLocaleString("ru-RU")}` : "Ещё не подключался"}{collector.collector_version ? ` · ${collector.collector_version}` : ""}</div></div><div className="flex items-center gap-2"><select className="h-9 max-w-52 rounded-md border bg-background px-2 text-sm" value={collector.organization_id ?? ""} onChange={(event) => updateOrganization(collector, event.target.value)}><option value="">Без организации</option>{organizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select><Button size="sm" variant="outline" title="Устройства и последние данные" onClick={() => setTelemetryCollector(collector)}><BarChart3 className="h-4 w-4 mr-2" />Данные</Button><Button size="icon" variant="ghost" className="text-destructive" title="Удалить" onClick={() => confirm(`Удалить коллектор «${collector.name}»?`) && remove.mutate(collector.id)}><Trash2 className="h-4 w-4" /></Button></div></div>;
+          return <div key={collector.id} className="rounded-lg border p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="min-w-0"><div className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${online ? "bg-emerald-500" : "bg-muted-foreground"}`} /><b>{collector.name}</b><Badge variant={collector.is_active ? "secondary" : "destructive"}>{collector.is_active ? online ? "На связи" : "Ожидание связи" : "Отключён"}</Badge></div><div className="mt-1 text-xs font-mono text-muted-foreground truncate">{collector.collector_id}</div><div className="mt-1 text-xs text-muted-foreground flex items-center gap-1"><Clock3 className="h-3 w-3" />{collector.last_seen_at ? `Последняя связь: ${new Date(collector.last_seen_at).toLocaleString("ru-RU")}` : "Ещё не подключался"}{collector.collector_version ? ` · ${collector.collector_version}` : ""}</div></div><div className="flex items-center gap-2"><select className="h-9 max-w-52 rounded-md border bg-background px-2 text-sm" value={collector.organization_id ?? ""} onChange={(event) => updateOrganization(collector, event.target.value)}><option value="">Без организации</option>{organizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select><Button size="sm" variant="outline" title="Скачать одноразовый файл подключения" onClick={() => issuePackage(collector)}><Download className="h-4 w-4 mr-2" />Настройки</Button><Button size="sm" variant="outline" title="Устройства и последние данные" onClick={() => setTelemetryCollector(collector)}><BarChart3 className="h-4 w-4 mr-2" />Данные</Button><Button size="icon" variant="ghost" className="text-destructive" title="Удалить" onClick={() => confirm(`Удалить коллектор «${collector.name}»?`) && remove.mutate(collector.id)}><Trash2 className="h-4 w-4" /></Button></div></div>;
         })}</div>}
       </CardContent>
     </Card>
-    <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Новый коллектор</DialogTitle><DialogDescription>Будет создан уникальный идентификатор и токен. Токен показывается один раз.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>Название *</Label><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Коллектор Брестэнерго" /></div><div><Label>Организация</Label><select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}><option value="">Привязать позднее</option>{organizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></div></div><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Отмена</Button><Button onClick={create}>Создать</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent><DialogHeader><DialogTitle>Новый коллектор</DialogTitle><DialogDescription>После создания будет сформирован одноразовый файл подключения. В нём уже будут CA-сертификат и параметры безопасной активации.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>Название *</Label><Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Коллектор Брестэнерго" /></div><div><Label>Организация</Label><select className="mt-1 h-10 w-full rounded-md border bg-background px-3" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}><option value="">Привязать позднее</option>{organizations.map((org) => <option key={org.id} value={org.id}>{org.name}</option>)}</select></div></div><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Отмена</Button><Button onClick={create}>Создать</Button></DialogFooter></DialogContent></Dialog>
     <Dialog open={!!telemetryCollector} onOpenChange={(open) => !open && setTelemetryCollector(null)}><DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Данные коллектора: {telemetryCollector?.name}</DialogTitle><DialogDescription>Устройства, последние значения и проблемы, переданные локальным коллектором.</DialogDescription></DialogHeader>{telemetryLoading ? <p className="py-8 text-center text-sm text-muted-foreground">Загрузка данных…</p> : <div className="space-y-6"><div className="grid gap-3 md:grid-cols-3"><Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Устройства</div><b className="text-2xl">{telemetry?.devices.length ?? 0}</b></CardContent></Card><Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Последние метрики</div><b className="text-2xl">{telemetry?.metrics.length ?? 0}</b></CardContent></Card><Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Активные проблемы</div><b className="text-2xl">{telemetry?.problems.filter((problem: any) => problem.is_active).length ?? 0}</b></CardContent></Card></div><section><h3 className="mb-2 font-semibold">Устройства</h3><Table><TableHeader><TableRow><TableHead>Имя</TableHead><TableHead>Адрес</TableHead><TableHead>Протокол</TableHead><TableHead>Статус</TableHead><TableHead>Метрики</TableHead><TableHead>Последние данные</TableHead></TableRow></TableHeader><TableBody>{telemetry?.devices.map((device: any) => <TableRow key={device.id}><TableCell className="font-medium">{device.name}</TableCell><TableCell>{device.address || "—"}</TableCell><TableCell>{device.protocol || "—"}</TableCell><TableCell><Badge variant={device.status === "available" ? "secondary" : "destructive"}>{device.status}</Badge></TableCell><TableCell>{device.metric_count}</TableCell><TableCell>{device.last_metric_at ? new Date(device.last_metric_at).toLocaleString("ru-RU") : "—"}</TableCell></TableRow>)}</TableBody></Table></section><section><h3 className="mb-2 font-semibold">Последние значения</h3><Table><TableHeader><TableRow><TableHead>Устройство</TableHead><TableHead>Метрика</TableHead><TableHead>Ключ</TableHead><TableHead>Значение</TableHead><TableHead>Проверка</TableHead></TableRow></TableHeader><TableBody>{telemetry?.metrics.map((metric: any) => <TableRow key={`${metric.device_name}-${metric.item_key}`}><TableCell>{metric.device_name}</TableCell><TableCell>{metric.name}</TableCell><TableCell className="font-mono text-xs">{metric.item_key}</TableCell><TableCell className={metric.error ? "text-destructive" : ""}>{metric.error || `${metric.value ?? "—"}${metric.units ? ` ${metric.units}` : ""}`}</TableCell><TableCell>{new Date(metric.collected_at).toLocaleString("ru-RU")}</TableCell></TableRow>)}</TableBody></Table></section><section><h3 className="mb-2 font-semibold">Проблемы</h3><Table><TableHeader><TableRow><TableHead>Устройство</TableHead><TableHead>Описание</TableHead><TableHead>Важность</TableHead><TableHead>Статус</TableHead></TableRow></TableHeader><TableBody>{telemetry?.problems.map((problem: any, index: number) => <TableRow key={`${problem.device_name}-${problem.opened_at}-${index}`}><TableCell>{problem.device_name}</TableCell><TableCell>{problem.description}</TableCell><TableCell>{problem.severity}</TableCell><TableCell><Badge variant={problem.is_active ? "destructive" : "secondary"}>{problem.is_active ? "Активна" : "Закрыта"}</Badge></TableCell></TableRow>)}</TableBody></Table></section></div>}</DialogContent></Dialog>
-    <Dialog open={!!credentials} onOpenChange={(open) => !open && setCredentials(null)}><DialogContent><DialogHeader><DialogTitle>Параметры подключения</DialogTitle><DialogDescription>Сохраните токен сейчас: после закрытия окна он не отображается в портале.</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>URL портала</Label><div className="flex gap-2"><Input readOnly value={credentials?.portalUrl ?? ""} /><Button variant="outline" size="icon" onClick={() => copy(credentials?.portalUrl ?? "")}><Copy className="h-4 w-4" /></Button></div></div><div><Label>Идентификатор коллектора</Label><div className="flex gap-2"><Input readOnly value={credentials?.id ?? ""} /><Button variant="outline" size="icon" onClick={() => copy(credentials?.id ?? "")}><Copy className="h-4 w-4" /></Button></div></div><div><Label>Токен синхронизации</Label><div className="flex gap-2"><Textarea readOnly value={credentials?.token ?? ""} className="min-h-20 font-mono text-xs" /><Button variant="outline" size="icon" onClick={() => copy(credentials?.token ?? "")}><Copy className="h-4 w-4" /></Button></div></div><div><Label>Публичный API-ключ портала</Label><div className="flex gap-2"><Textarea readOnly value={credentials?.portalApiKey ?? ""} className="min-h-20 font-mono text-xs" /><Button variant="outline" size="icon" onClick={() => copy(credentials?.portalApiKey ?? "")}><Copy className="h-4 w-4" /></Button></div></div><p className="text-xs text-muted-foreground">Скачайте «Сертификат CA» выше. На коллекторе откройте <b>Система → Синхронизация</b>, нажмите «Подключить портал» и внесите URL, ID, токен, публичный API-ключ и сертификат. Редактирование и удаление подключения выполняются там же — без CLI.</p><DialogFooter><Button onClick={() => setCredentials(null)}><CheckCircle2 className="mr-2 h-4 w-4" />Сохранил</Button></DialogFooter></div></DialogContent></Dialog>
+    <Dialog open={!!packageReady} onOpenChange={(open) => !open && setPackageReady(null)}><DialogContent><DialogHeader><DialogTitle>Файл подключения готов</DialogTitle><DialogDescription>Скачайте один файл и загрузите его на локальном ACRO Collector. Он содержит CA-сертификат и одноразовый токен активации.</DialogDescription></DialogHeader><div className="space-y-3"><p className="text-xs text-muted-foreground">Файл действует 24 часа и становится недействительным сразу после успешной активации. Не передавайте его третьим лицам.</p><DialogFooter><Button variant="outline" onClick={() => setPackageReady(null)}>Закрыть</Button><Button onClick={async () => { try { if (packageReady) await downloadPackage(packageReady.collector, packageReady.token); toast({ title: "Файл подключения скачан" }); } catch (error: any) { toast({ title: "Не удалось скачать файл", description: error.message, variant: "destructive" }); } }}><Download className="mr-2 h-4 w-4" />Скачать настройки</Button></DialogFooter></div></DialogContent></Dialog>
   </>;
 }
