@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { invokeZabbix } from "@/lib/zabbix-invoke";
 import { Link } from "react-router-dom";
@@ -15,6 +15,9 @@ import {
 import { cn } from "@/lib/utils";
 import { moduleLabels } from "@/lib/license-labels";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig,
@@ -1074,23 +1077,47 @@ const CollectorProblemsWidget: WidgetMeta["Component"] = ({ config, onConfigChan
     })),
   ];
   const filtered = allProblems.filter((problem) => !selectedHostKeys.length || selectedHostKeys.includes(problem.key));
-  const chooseHosts = (event: ChangeEvent<HTMLSelectElement>) => {
-    onConfigChange?.({ selectedHostKeys: Array.from(event.target.selectedOptions).map((option) => option.value) });
+  const setHostSelected = (hostKey: string, checked: boolean) => {
+    const next = checked
+      ? [...new Set([...selectedHostKeys, hostKey])]
+      : selectedHostKeys.filter((key) => key !== hostKey);
+    onConfigChange?.({ selectedHostKeys: next });
   };
   const severityClass: Record<string, string> = { disaster: "text-red-500", high: "text-red-500", average: "text-orange-500", warning: "text-amber-500", information: "text-sky-500" };
   return (
     <WidgetShell title="Активные проблемы мониторинга" icon={AlertTriangle}
       action={<Link to="/monitoring?tab=problems" className="text-sm text-primary hover:underline flex items-center gap-1">Все <ExternalLink className="h-3.5 w-3.5" /></Link>}>
       <div className="space-y-2">
-        <select multiple value={selectedHostKeys} onChange={chooseHosts} className="w-full min-h-20 rounded-md border border-input bg-background px-2 py-1 text-xs" title="Выберите один или несколько хостов. Если ничего не выбрано, показаны проблемы всех источников.">
-          <optgroup label="Zabbix">
-            {(zabbixHosts as any[]).map((host) => <option key={`zabbix:${host.hostid}`} value={`zabbix:${host.hostid}`}>{host.name}</option>)}
-          </optgroup>
-          <optgroup label="ACRO Collector">
-            {(devices as any[]).map((device) => <option key={`collector:${device.device_id}`} value={`collector:${device.device_id}`}>{device.name} · {device.collector_name}</option>)}
-          </optgroup>
-        </select>
-        <p className="text-[11px] text-muted-foreground">Выберите хосты Zabbix и/или ACRO Collector. Без выбора отображаются все.</p>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="w-full justify-between text-xs font-normal">
+              {selectedHostKeys.length ? `Выбрано хостов: ${selectedHostKeys.length}` : "Все хосты мониторинга"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-80 max-h-72 overflow-y-auto p-3">
+            <p className="mb-2 text-xs text-muted-foreground">Выберите хосты. Без выбора показаны проблемы всех источников.</p>
+            <div className="space-y-3">
+              <div>
+                <p className="mb-1 text-xs font-semibold">Zabbix</p>
+                <div className="space-y-1.5">
+                  {(zabbixHosts as any[]).map((host) => {
+                    const key = `zabbix:${host.hostid}`;
+                    return <label key={key} className="flex cursor-pointer items-center gap-2 text-xs"><Checkbox checked={selectedHostKeys.includes(key)} onCheckedChange={(checked) => setHostSelected(key, checked === true)} />{host.name}</label>;
+                  })}
+                </div>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold">ACRO Collector</p>
+                <div className="space-y-1.5">
+                  {(devices as any[]).map((device) => {
+                    const key = `collector:${device.device_id}`;
+                    return <label key={key} className="flex cursor-pointer items-center gap-2 text-xs"><Checkbox checked={selectedHostKeys.includes(key)} onCheckedChange={(checked) => setHostSelected(key, checked === true)} />{device.name} · {device.collector_name}</label>;
+                  })}
+                </div>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
       {filtered.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">Активных проблем нет</p> : <div className="mt-3 max-h-64 overflow-y-auto space-y-1.5">{filtered.slice(0, 20).map((problem) => <div key={problem.id} className="rounded-md border p-2 text-xs"><div className="flex items-start gap-2"><AlertTriangle className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", severityClass[problem.severity] || "text-amber-500")} /><div className="min-w-0"><p className="font-medium truncate">{problem.name}</p><p className="text-muted-foreground truncate">{problem.host} · {problem.source}</p></div></div></div>)}</div>}
     </WidgetShell>
