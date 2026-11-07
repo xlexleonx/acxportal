@@ -1016,7 +1016,12 @@ const TZCoverageWidget: WidgetMeta["Component"] = ({ chartType }) => {
 
 /* ============ Monitoring: Active problems (Zabbix) ============ */
 const CollectorProblemsWidget: WidgetMeta["Component"] = ({ config, onConfigChange }: any = {}) => {
-  const selectedIds: string[] = Array.isArray(config?.deviceIds) ? config.deviceIds : [];
+  // selectedHostKeys keeps sources separate: zabbix:<hostid> and collector:<device-id>.
+  // deviceIds is supported as a migration path for widgets created before the
+  // Zabbix source was added.
+  const selectedHostKeys: string[] = Array.isArray(config?.selectedHostKeys)
+    ? config.selectedHostKeys
+    : Array.isArray(config?.deviceIds) ? config.deviceIds.map((id: string) => `collector:${id}`) : [];
   const { data: problems = [] } = useQuery({
     queryKey: ["dashboard-collector-problems"],
     queryFn: async () => {
@@ -1035,21 +1040,59 @@ const CollectorProblemsWidget: WidgetMeta["Component"] = ({ config, onConfigChan
     },
     refetchInterval: 60000,
   });
-  const filtered = (problems as any[]).filter((problem) => problem.is_active && (!selectedIds.length || selectedIds.includes(problem.device_id)));
-  const chooseDevices = (event: ChangeEvent<HTMLSelectElement>) => {
-    onConfigChange?.({ deviceIds: Array.from(event.target.selectedOptions).map((option) => option.value) });
+  const { data: zabbixHosts = [] } = useQuery({
+    queryKey: ["dashboard-zabbix-hosts"],
+    queryFn: async () => {
+      try {
+        const { data, error } = await invokeZabbix({ body: { action: "getHosts" } });
+        if (error) throw error;
+        return (data?.result as any[]) || [];
+      } catch { return []; }
+    },
+    refetchInterval: 60000,
+  });
+  const { data: zabbixProblems = [] } = useQuery({
+    queryKey: ["dashboard-zabbix-problems-all-sources"],
+    queryFn: async () => {
+      try {
+        const { data, error } = await invokeZabbix({ body: { action: "getProblems" } });
+        if (error) throw error;
+        return (data?.result as any[]) || [];
+      } catch { return []; }
+    },
+    refetchInterval: 30000,
+  });
+  const allProblems = [
+    ...(problems as any[]).filter((problem) => problem.is_active).map((problem) => ({
+      key: `collector:${problem.device_id}`, id: `collector-${problem.problem_id}`, host: problem.device_name,
+      source: problem.site_name || problem.collector_name || "ACRO Collector", name: problem.description,
+      severity: problem.severity, clock: problem.opened_at,
+    })),
+    ...(zabbixProblems as any[]).map((problem) => ({
+      key: `zabbix:${problem.hosts?.[0]?.hostid || ""}`, id: `zabbix-${problem.eventid}`, host: problem.hosts?.[0]?.name || "—",
+      source: "Zabbix", name: problem.name, severity: problem.severity, clock: problem.clock ? new Date(Number(problem.clock) * 1000).toISOString() : null,
+    })),
+  ];
+  const filtered = allProblems.filter((problem) => !selectedHostKeys.length || selectedHostKeys.includes(problem.key));
+  const chooseHosts = (event: ChangeEvent<HTMLSelectElement>) => {
+    onConfigChange?.({ selectedHostKeys: Array.from(event.target.selectedOptions).map((option) => option.value) });
   };
   const severityClass: Record<string, string> = { disaster: "text-red-500", high: "text-red-500", average: "text-orange-500", warning: "text-amber-500", information: "text-sky-500" };
   return (
-    <WidgetShell title="Активные проблемы ACRO Collector" icon={AlertTriangle}
+    <WidgetShell title="Активные проблемы мониторинга" icon={AlertTriangle}
       action={<Link to="/monitoring?tab=problems" className="text-sm text-primary hover:underline flex items-center gap-1">Все <ExternalLink className="h-3.5 w-3.5" /></Link>}>
       <div className="space-y-2">
-        <select multiple value={selectedIds} onChange={chooseDevices} className="w-full min-h-16 rounded-md border border-input bg-background px-2 py-1 text-xs" title="Выберите один или несколько хостов. Если ничего не выбрано, показаны проблемы всех хостов.">
-          {(devices as any[]).map((device) => <option key={device.device_id} value={device.device_id}>{device.name} · {device.collector_name}</option>)}
+        <select multiple value={selectedHostKeys} onChange={chooseHosts} className="w-full min-h-20 rounded-md border border-input bg-background px-2 py-1 text-xs" title="Выберите один или несколько хостов. Если ничего не выбрано, показаны проблемы всех источников.">
+          <optgroup label="Zabbix">
+            {(zabbixHosts as any[]).map((host) => <option key={`zabbix:${host.hostid}`} value={`zabbix:${host.hostid}`}>{host.name}</option>)}
+          </optgroup>
+          <optgroup label="ACRO Collector">
+            {(devices as any[]).map((device) => <option key={`collector:${device.device_id}`} value={`collector:${device.device_id}`}>{device.name} · {device.collector_name}</option>)}
+          </optgroup>
         </select>
-        <p className="text-[11px] text-muted-foreground">Выберите хосты для виджета. Без выбора отображаются все.</p>
+        <p className="text-[11px] text-muted-foreground">Выберите хосты Zabbix и/или ACRO Collector. Без выбора отображаются все.</p>
       </div>
-      {filtered.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">Активных проблем нет</p> : <div className="mt-3 max-h-64 overflow-y-auto space-y-1.5">{filtered.slice(0, 20).map((problem) => <div key={problem.problem_id} className="rounded-md border p-2 text-xs"><div className="flex items-start gap-2"><AlertTriangle className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", severityClass[problem.severity] || "text-amber-500")} /><div className="min-w-0"><p className="font-medium truncate">{problem.description}</p><p className="text-muted-foreground truncate">{problem.device_name} · {problem.site_name || problem.collector_name}</p></div></div></div>)}</div>}
+      {filtered.length === 0 ? <p className="text-sm text-muted-foreground text-center py-6">Активных проблем нет</p> : <div className="mt-3 max-h-64 overflow-y-auto space-y-1.5">{filtered.slice(0, 20).map((problem) => <div key={problem.id} className="rounded-md border p-2 text-xs"><div className="flex items-start gap-2"><AlertTriangle className={cn("h-3.5 w-3.5 mt-0.5 shrink-0", severityClass[problem.severity] || "text-amber-500")} /><div className="min-w-0"><p className="font-medium truncate">{problem.name}</p><p className="text-muted-foreground truncate">{problem.host} · {problem.source}</p></div></div></div>)}</div>}
     </WidgetShell>
   );
 };

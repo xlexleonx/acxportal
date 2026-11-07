@@ -56,6 +56,8 @@ interface Props {
   onAcknowledge: (eventid: string) => void;
   initialPriorityFilter?: string;
   collectorProblems?: any[];
+  zabbixHosts?: any[];
+  collectorDevices?: any[];
 }
 
 export default function MonitoringProblems({
@@ -63,6 +65,8 @@ export default function MonitoringProblems({
   isStaff, onCreateTicket, onAcknowledge, initialPriorityFilter,
   agentProblems = [],
   collectorProblems = [],
+  zabbixHosts = [],
+  collectorDevices = [],
 }: Props & { agentProblems?: any[] }) {
   const { toast } = useToast();
   const { hasRole, user } = useAuth();
@@ -79,6 +83,7 @@ export default function MonitoringProblems({
   const [sortBy, setSortBy] = useState<SortBy>((persisted.sortBy as SortBy) || "time");
   const [sortDir, setSortDir] = useState<SortDir>((persisted.sortDir as SortDir) || "desc");
   const [siteFilter, setSiteFilter] = useState<string>("all");
+  const [selectedHostKeys, setSelectedHostKeys] = useState<string[]>([]);
 
   useEffect(() => {
     saveLS({ priorityFilter, hostFilter, showDismissed, onlyUnack, groupByHost, sortBy, sortDir });
@@ -226,6 +231,10 @@ export default function MonitoringProblems({
     }));
     let list = [...collectorRows, ...agentRows, ...Array.from(byTrigger.values())];
     if (siteFilter !== "all") list = list.filter((row: any) => row.site_id === siteFilter);
+    if (selectedHostKeys.length) list = list.filter((row: any) => {
+      const key = row.source === "collector" ? `collector:${row.hostid}` : row.hostid ? `zabbix:${row.hostid}` : "";
+      return selectedHostKeys.includes(key);
+    });
     if (!showDismissed) {
       list = list.filter((r) => !r.eventid || !dismissedSet.has(r.eventid));
     }
@@ -237,7 +246,7 @@ export default function MonitoringProblems({
       );
     }
     return list;
-  }, [problemsArr, alertsArr, hostFilter, dismissedSet, showDismissed, agentProblems, collectorProblems, siteFilter]);
+  }, [problemsArr, alertsArr, hostFilter, dismissedSet, showDismissed, agentProblems, collectorProblems, siteFilter, selectedHostKeys]);
 
   const collectorSites = useMemo(() => {
     const sites = new Map<string, string>();
@@ -443,6 +452,10 @@ export default function MonitoringProblems({
           <SelectTrigger className="w-[220px]"><SelectValue placeholder="Все ЦОДы" /></SelectTrigger>
           <SelectContent><SelectItem value="all">Все ЦОДы</SelectItem>{collectorSites.map((site) => <SelectItem key={site.id} value={site.id}>{site.name}</SelectItem>)}</SelectContent>
         </Select>}
+        <select multiple value={selectedHostKeys} onChange={(event) => setSelectedHostKeys(Array.from(event.target.selectedOptions).map((option) => option.value))} className="min-h-10 max-w-md flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs" title="Можно выбрать несколько хостов. Без выбора показаны проблемы всех хостов.">
+          <optgroup label="Zabbix">{(zabbixHosts || []).map((host: any) => <option key={`zabbix:${host.hostid}`} value={`zabbix:${host.hostid}`}>{host.name}</option>)}</optgroup>
+          <optgroup label="ACRO Collector">{(collectorDevices || []).map((device: any) => <option key={`collector:${device.device_id}`} value={`collector:${device.device_id}`}>{device.name} · {device.collector_name}</option>)}</optgroup>
+        </select>
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

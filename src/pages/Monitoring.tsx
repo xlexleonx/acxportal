@@ -276,6 +276,8 @@ export default function Monitoring() {
             onAcknowledge={acknowledgeEvent}
             initialPriorityFilter={problemPriorityFilter}
             collectorProblems={collectorProblems}
+            zabbixHosts={hosts}
+            collectorDevices={collectorDevices}
           />
         </TabsContent>
 
