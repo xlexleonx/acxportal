@@ -14,6 +14,7 @@ import { Search, CheckCircle2, MessageSquarePlus, Check, X, Loader2, Trash2, Eye
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { logAudit } from "@/lib/audit";
@@ -110,6 +111,16 @@ export default function MonitoringProblems({
     enabled: viewMode === "disabled",
     staleTime: 30000,
   });
+  const { data: collectorDisabledTriggers = [], isLoading: collectorDisabledLoading, refetch: refetchCollectorDisabled } = useQuery({
+    queryKey: ["collector-disabled-triggers"],
+    enabled: viewMode === "disabled",
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("list_collector_disabled_triggers");
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 30000,
+  });
 
   const enableTriggerMutation = useMutation({
     mutationFn: async (triggerid: string) => {
@@ -141,6 +152,23 @@ export default function MonitoringProblems({
       if (ctx?.prev) qc.setQueryData(["zabbix", "getDisabledTriggers"], ctx.prev);
       toast({ title: "Ошибка", description: e.message, variant: "destructive" });
     },
+  });
+
+  const setCollectorTriggerMutation = useMutation({
+    mutationFn: async ({ deviceId, triggerId, enabled, description = "", severity = "warning" }: any) => {
+      const { error } = await (supabase as any).rpc("set_collector_trigger_enabled", {
+        _collector_device_id: deviceId, _trigger_id: String(triggerId), _enabled: enabled,
+        _description: description, _severity: severity,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      toast({ title: variables.enabled ? "Включение отправлено коллектору" : "Отключение отправлено коллектору", description: "Команда будет выполнена при следующей исходящей синхронизации коллектора." });
+      qc.invalidateQueries({ queryKey: ["collector-monitoring-problems"] });
+      qc.invalidateQueries({ queryKey: ["collector-disabled-triggers"] });
+      refetchCollectorDisabled();
+    },
+    onError: (error: Error) => toast({ title: "Ошибка", description: error.message, variant: "destructive" }),
   });
 
   const problemsArr = Array.isArray(problems) ? problems : [];
@@ -253,6 +281,13 @@ export default function MonitoringProblems({
     for (const problem of collectorProblems || []) if (problem.site_id) sites.set(problem.site_id, problem.site_name || "Без ЦОДа");
     return [...sites.entries()].map(([id, name]) => ({ id, name }));
   }, [collectorProblems]);
+  const allDisabledTriggers = useMemo(() => [
+    ...(disabledTriggers as any[]).map((trigger) => ({ ...trigger, source: "zabbix" })),
+    ...(collectorDisabledTriggers as any[]).map((trigger) => ({
+      triggerid: trigger.trigger_id, description: trigger.description, priority: ({ disaster: "5", high: "4", average: "3", warning: "2", information: "1", not_classified: "0" } as Record<string, string>)[trigger.severity] || "2",
+      hosts: [{ name: trigger.device_name }], source: "collector", collector_device_id: trigger.collector_device_id,
+    })),
+  ], [disabledTriggers, collectorDisabledTriggers]);
 
   const severityCounts = useMemo(() => {
     const c: Record<string, number> = { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0 };
@@ -452,10 +487,7 @@ export default function MonitoringProblems({
           <SelectTrigger className="w-[220px]"><SelectValue placeholder="Все ЦОДы" /></SelectTrigger>
           <SelectContent><SelectItem value="all">Все ЦОДы</SelectItem>{collectorSites.map((site) => <SelectItem key={site.id} value={site.id}>{site.name}</SelectItem>)}</SelectContent>
         </Select>}
-        <select multiple value={selectedHostKeys} onChange={(event) => setSelectedHostKeys(Array.from(event.target.selectedOptions).map((option) => option.value))} className="min-h-10 max-w-md flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs" title="Можно выбрать несколько хостов. Без выбора показаны проблемы всех хостов.">
-          <optgroup label="Zabbix">{(zabbixHosts || []).map((host: any) => <option key={`zabbix:${host.hostid}`} value={`zabbix:${host.hostid}`}>{host.name}</option>)}</optgroup>
-          <optgroup label="ACRO Collector">{(collectorDevices || []).map((device: any) => <option key={`collector:${device.device_id}`} value={`collector:${device.device_id}`}>{device.name} · {device.collector_name}</option>)}</optgroup>
-        </select>
+        <Popover><PopoverTrigger asChild><Button size="sm" variant="outline">Хосты {selectedHostKeys.length ? `(${selectedHostKeys.length})` : "— все"}</Button></PopoverTrigger><PopoverContent className="w-80 max-h-80 overflow-y-auto" align="start"><p className="mb-2 text-xs text-muted-foreground">Отметьте нужные хосты. Без выбора отображаются все источники.</p><div className="space-y-2"><p className="text-xs font-semibold">Zabbix</p>{(zabbixHosts || []).map((host: any) => { const key = `zabbix:${host.hostid}`; return <label key={key} className="flex items-center gap-2 text-sm"><Checkbox checked={selectedHostKeys.includes(key)} onCheckedChange={(checked) => setSelectedHostKeys((keys) => checked ? [...keys, key] : keys.filter((value) => value !== key))} />{host.name}</label>; })}<p className="pt-2 text-xs font-semibold">ACRO Collector</p>{(collectorDevices || []).map((device: any) => { const key = `collector:${device.device_id}`; return <label key={key} className="flex items-center gap-2 text-sm"><Checkbox checked={selectedHostKeys.includes(key)} onCheckedChange={(checked) => setSelectedHostKeys((keys) => checked ? [...keys, key] : keys.filter((value) => value !== key))} />{device.name} <span className="text-xs text-muted-foreground">· {device.collector_name}</span></label>; })}</div></PopoverContent></Popover>
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -686,13 +718,14 @@ export default function MonitoringProblems({
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                title="Отключить триггер в Zabbix (admin)"
+                                title={r.source === "collector" ? "Отключить триггер на коллекторе" : "Отключить триггер в Zabbix (admin)"}
                                 onClick={() => {
-                                  if (window.confirm(`Отключить триггер «${r.name}» в Zabbix? Он перестанет генерировать события до повторного включения.`)) {
-                                    disableTriggerMutation.mutate({ triggerid: r.triggerid, eventid: r.eventid });
+                                  if (window.confirm(`Отключить триггер «${r.name}»? Он перестанет генерировать события до повторного включения.`)) {
+                                    if (r.source === "collector") setCollectorTriggerMutation.mutate({ deviceId: r.hostid, triggerId: r.triggerid, enabled: false, description: r.name, severity: ({ "5": "disaster", "4": "high", "3": "average", "2": "warning", "1": "information", "0": "not_classified" } as Record<string, string>)[String(r.severity)] || "warning" });
+                                    else disableTriggerMutation.mutate({ triggerid: r.triggerid, eventid: r.eventid });
                                   }
                                 }}
-                                disabled={disableTriggerMutation.isPending}
+                                disabled={disableTriggerMutation.isPending || setCollectorTriggerMutation.isPending}
                                 className="text-orange-500 hover:text-orange-500"
                               >
                                 <BellOff className="h-4 w-4" />
@@ -729,15 +762,15 @@ export default function MonitoringProblems({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              Отключённые триггеры ({disabledTriggers.length})
+              Отключённые триггеры ({allDisabledTriggers.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {disabledLoading ? (
+            {disabledLoading || collectorDisabledLoading ? (
               <div className="space-y-3 py-4">
                 {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
               </div>
-            ) : disabledTriggers.length === 0 ? (
+            ) : allDisabledTriggers.length === 0 ? (
               <div className="text-center py-8">
                 <BellOff className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
                 <p className="text-muted-foreground">Отключённых триггеров нет</p>
@@ -754,7 +787,7 @@ export default function MonitoringProblems({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {disabledTriggers.map((t: any) => (
+                  {allDisabledTriggers.map((t: any) => (
                     <TableRow key={t.triggerid} className="opacity-80">
                       <TableCell className="font-medium">{t.hosts?.[0]?.name || "—"}</TableCell>
                       <TableCell className="max-w-[400px]">{t.description}</TableCell>
@@ -774,13 +807,14 @@ export default function MonitoringProblems({
                             <Button
                               size="sm"
                               variant="ghost"
-                              title="Включить триггер в Zabbix"
+                              title={t.source === "collector" ? "Включить триггер на коллекторе" : "Включить триггер в Zabbix"}
                               onClick={() => {
                                 if (window.confirm(`Включить триггер «${t.description}» обратно?`)) {
-                                  enableTriggerMutation.mutate(t.triggerid);
+                                  if (t.source === "collector") setCollectorTriggerMutation.mutate({ deviceId: t.collector_device_id, triggerId: t.triggerid, enabled: true, description: t.description, severity: ({ "5": "disaster", "4": "high", "3": "average", "2": "warning", "1": "information", "0": "not_classified" } as Record<string, string>)[String(t.priority)] || "warning" });
+                                  else enableTriggerMutation.mutate(t.triggerid);
                                 }
                               }}
-                              disabled={enableTriggerMutation.isPending}
+                              disabled={enableTriggerMutation.isPending || setCollectorTriggerMutation.isPending}
                               className="text-emerald-600 hover:text-emerald-600"
                             >
                               <Bell className="h-4 w-4" />

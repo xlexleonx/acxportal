@@ -1364,7 +1364,7 @@ export const WIDGET_REGISTRY: Record<string, WidgetMeta> = {
     Component: RecentEventsWidget,
   },
   "collector-problems": {
-    type: "collector-problems", title: "Проблемы коллекторов", description: "Активные проблемы, полученные от ACRO Collector. В настройках можно выбрать хосты.",
+    type: "collector-problems", title: "Проблемы мониторинга", description: "Активные проблемы Zabbix и ACRO Collector. В настройках можно выбрать хосты.",
     category: "Мониторинг", icon: AlertTriangle, defaultW: 6, defaultH: 7, minW: 3, minH: 4,
     Component: CollectorProblemsWidget,
   },

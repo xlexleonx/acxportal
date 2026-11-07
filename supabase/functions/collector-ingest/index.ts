@@ -296,7 +296,16 @@ export default async function handler(req: Request): Promise<Response> {
     if (typeof heartbeatPayload.collector_name === "string") update.metadata = { name: heartbeatPayload.collector_name.slice(0, 200) };
     const { error: updateError } = await supabase.from("collector_connections").update(update).eq("id", collector.id);
     if (updateError) throw updateError;
-    return new Response(JSON.stringify({ ok: true, ingest_version: 2 }), { headers: { ...corsHeaders, "content-type": "application/json" } });
+    const { data: commands, error: commandsError } = await supabase
+      .from("collector_trigger_states")
+      .select("source_trigger_id,enabled,collector_devices!inner(source_device_id)")
+      .eq("collector_devices.collector_connection_id", collector.id);
+    if (commandsError) throw commandsError;
+    const controls = (commands ?? []).map((command: any) => ({
+      type: "trigger.set_enabled", trigger_id: command.source_trigger_id,
+      host_id: command.collector_devices?.source_device_id, enabled: command.enabled,
+    }));
+    return new Response(JSON.stringify({ ok: true, ingest_version: 3, commands: controls }), { headers: { ...corsHeaders, "content-type": "application/json" } });
   } catch (error) {
     return new Response(JSON.stringify({ error: String(error) }), { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } });
   }
